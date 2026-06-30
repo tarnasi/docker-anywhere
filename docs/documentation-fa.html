@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <title>مستندات پروژه docker-anywhere</title>
+  <style>
+    @font-face {
+      font-family: "Vazirmatn";
+      src: url("fonts/Vazirmatn-Regular.ttf") format("truetype");
+      font-weight: 400;
+    }
+    @font-face {
+      font-family: "Vazirmatn";
+      src: url("fonts/Vazirmatn-Bold.ttf") format("truetype");
+      font-weight: 700;
+    }
+
+    @page {
+      size: A4;
+      margin: 2cm 2.2cm;
+      @bottom-center {
+        content: counter(page) " / " counter(pages);
+        font-family: Vazirmatn, sans-serif;
+        font-size: 9pt;
+        color: #666;
+      }
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      font-family: Vazirmatn, Tahoma, sans-serif;
+      font-size: 11.5pt;
+      line-height: 1.95;
+      color: #1a1a1a;
+      direction: rtl;
+      text-align: right;
+    }
+
+    h1 {
+      font-size: 22pt;
+      color: #0f3d5e;
+      border-bottom: 3px solid #0f3d5e;
+      padding-bottom: 10px;
+      margin-top: 0;
+      page-break-after: avoid;
+    }
+
+    h2 {
+      font-size: 16pt;
+      color: #15527a;
+      margin-top: 28px;
+      border-right: 5px solid #2e86ab;
+      padding-right: 12px;
+      page-break-after: avoid;
+    }
+
+    h3 {
+      font-size: 13pt;
+      color: #1f6f8b;
+      margin-top: 20px;
+      page-break-after: avoid;
+    }
+
+    h4 {
+      font-size: 11.5pt;
+      color: #333;
+      margin-top: 14px;
+    }
+
+    p { margin: 8px 0; }
+
+    .subtitle {
+      font-size: 13pt;
+      color: #555;
+      margin-bottom: 24px;
+    }
+
+    .en, code, pre, .file-name {
+      direction: ltr;
+      unicode-bidi: embed;
+      font-family: "Menlo", "Consolas", "Courier New", monospace;
+      background: #f4f6f8;
+      padding: 1px 6px;
+      border-radius: 4px;
+      font-size: 10pt;
+      color: #0b3d4a;
+    }
+
+    pre {
+      display: block;
+      padding: 12px 14px;
+      overflow-x: auto;
+      border: 1px solid #dde3ea;
+      border-radius: 6px;
+      line-height: 1.6;
+      white-space: pre-wrap;
+      word-break: break-word;
+      text-align: left;
+      direction: ltr;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 14px 0 20px;
+      font-size: 10.5pt;
+    }
+
+    th, td {
+      border: 1px solid #cfd8e3;
+      padding: 8px 10px;
+      vertical-align: top;
+    }
+
+    th {
+      background: #e8f1f8;
+      color: #0f3d5e;
+      font-weight: 700;
+    }
+
+    tr:nth-child(even) td { background: #fafbfc; }
+
+    ul, ol { margin: 8px 0; padding-right: 22px; }
+    li { margin: 5px 0; }
+
+    .box {
+      background: #f0f7fb;
+      border: 1px solid #b8d4e8;
+      border-radius: 8px;
+      padding: 14px 16px;
+      margin: 16px 0;
+    }
+
+    .warn {
+      background: #fff8e6;
+      border-color: #e8c96a;
+    }
+
+    .diagram {
+      background: #f9fafb;
+      border: 1px dashed #aab;
+      padding: 16px;
+      font-size: 10pt;
+      line-height: 1.7;
+      direction: ltr;
+      text-align: left;
+      unicode-bidi: embed;
+    }
+
+    .toc a {
+      color: #15527a;
+      text-decoration: none;
+    }
+
+    .page-break { page-break-before: always; }
+
+    .tag {
+      display: inline-block;
+      background: #dceefb;
+      color: #0b3d5e;
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-size: 9pt;
+      margin-left: 4px;
+    }
+  </style>
+</head>
+<body>
+
+<h1>مستندات پروژه <span class="en">docker-anywhere</span></h1>
+<p class="subtitle">
+  راهنمای کامل فارسی — عامل اجرای دستور از راه دور با ارتباط خروجی‌محور (<span class="en">Outbound-Only</span>)
+  برای مدیریت <span class="en">Docker</span> و سرور تولید
+</p>
+
+<div class="box">
+  <strong>خلاصه یک‌خطی:</strong>
+  این پروژه دو بخش دارد: <strong>عامل (<span class="en">Agent</span>)</strong> روی سرور تولید نصب می‌شود و فقط
+  <em>به بیرون</em> درخواست می‌زند؛ و <strong>سرور کنترل (<span class="en">Control Server</span>)</strong> که
+  دستورات را در صف قرار می‌دهد و نتایج را ذخیره می‌کند. هیچ پورتی برای دریافت دستور از اینترنت روی سرور تولید باز نمی‌شود.
+</div>
+
+<h2>فهرست مطالب</h2>
+<ol class="toc">
+  <li><a href="#overview">معرفی کلی پروژه</a></li>
+  <li><a href="#architecture">معماری و جریان کار</a></li>
+  <li><a href="#agent-folder">پوشه agent — عامل روی سرور تولید</a></li>
+  <li><a href="#control-folder">پوشه control_server — سرور کنترل</a></li>
+  <li><a href="#root-files">فایل‌های ریشه پروژه</a></li>
+  <li><a href="#actions">دستورات مجاز (Whitelist)</a></li>
+  <li><a href="#security">امنیت</a></li>
+  <li><a href="#run">نحوه اجرا</a></li>
+  <li><a href="#new-action">افزودن دستور جدید</a></li>
+</ol>
+
+<h2 id="overview">۱. معرفی کلی پروژه</h2>
+
+<p>
+  پروژه <span class="en">docker-anywhere</span> یک سیستم مدیریت از راه دور برای سرورهای تولید است که با
+  <span class="en">Python</span>، فریم‌ورک <span class="en">FastAPI</span> و ابزار <span class="en">UV</span>
+  ساخته شده است.
+</p>
+
+<p><strong>مشکل قبلی:</strong> اگر روی سرور تولید یک <span class="en">API</span> ورودی باز کنید (مثلاً
+<span class="en">POST /execute</span>)، هر حمله‌گر می‌تواند سعی کند به آن وصل شود. این ریسک امنیتی بالایی دارد.</p>
+
+<p><strong>راه‌حل این پروژه:</strong></p>
+<ul>
+  <li>عامل (<span class="en">Agent</span>) روی سرور تولید <strong>هر ۱۵ ثانیه</strong> (قابل تنظیم) به سرور کنترل وصل می‌شود و می‌پرسد: «دستور جدیدی دارم؟»</li>
+  <li>اگر دستوری باشد، فقط دستورات از پیش تأیید‌شده (<span class="en">Whitelist</span>) اجرا می‌شوند.</li>
+  <li>نتیجه (<span class="en">stdout</span>، <span class="en">stderr</span>، <span class="en">returncode</span>) به سرور کنترل برگردانده می‌شود.</li>
+  <li>اپراتور از طریق سرور کنترل دستور می‌فرستد و تاریخچه را می‌بیند.</li>
+</ul>
+
+<h3>دو پوشه اصلی</h3>
+<table>
+  <tr>
+    <th>پوشه</th>
+    <th>کجا اجرا می‌شود؟</th>
+    <th>نقش</th>
+  </tr>
+  <tr>
+    <td><span class="file-name">agent/</span></td>
+    <td>روی هر سرور تولید</td>
+    <td>دریافت دستور از صف، اجرای امن، گزارش نتیجه — فقط ارتباط خروجی</td>
+  </tr>
+  <tr>
+    <td><span class="file-name">control_server/</span></td>
+    <td>روی یک سرور مرکزی / ابر</td>
+    <td>صف دستورات، احراز هویت اپراتور و عامل، تاریخچه اجرا</td>
+  </tr>
+</table>
+
+<h2 id="architecture">۲. معماری و جریان کار</h2>
+
+<div class="diagram">
+┌─────────────┐         HTTPS (امضا شده)          ┌──────────────────┐
+│  اپراتور    │ ─── POST /api/v1/commands ───────► │  Control Server  │
+│  (Operator) │ ◄── GET  /api/v1/history ──────── │  سرور کنترل      │
+└─────────────┘                                    └────────┬─────────┘
+                                                            │
+                         هر ۱۵ ثانیه (Outbound)              │
+┌─────────────┐   GET  /api/v1/poll (امضا شده)              │
+│   Agent     │ ◄───────────────────────────────────────────┘
+│  سرور تولید │
+│             │ ─── POST /api/v1/results ───────────────────►
+└─────────────┘
+
+فقط /health روی 127.0.0.1 (محلی) — نه برای دستور از اینترنت
+</div>
+
+<ol>
+  <li>اپراتور با کلید مخصوص خودش، دستور «ری‌استارت سرویس <span class="en">web</span>» را به صف عامل می‌فرستد.</li>
+  <li>عامل در چرخه بعدی polling، دستور را می‌گیرد.</li>
+  <li>ماژول <span class="file-name">executor.py</span> دستور را به آرگومان‌های امن <span class="en">subprocess</span> تبدیل می‌کند (بدون <span class="en">shell=True</span>).</li>
+  <li>نتیجه اجرا به سرور کنترل ارسال و در تاریخچه ثبت می‌شود.</li>
+</ol>
+
+<div class="page-break"></div>
+
+<h2 id="agent-folder">۳. پوشه <span class="file-name">agent/</span> — عامل روی سرور تولید</h2>
+
+<p>این پوشه قلب سیستم روی سرور تولید است. تمام فایل‌های زیر با هم کار می‌کنند:</p>
+
+<h3><span class="file-name">agent/main.py</span> <span class="tag">نقطه ورود</span></h3>
+<p><strong>کار:</strong> اپلیکیشن <span class="en">FastAPI</span> را راه‌اندازی می‌کند.</p>
+<ul>
+  <li>در <span class="en">startup</span>: لاگ را تنظیم می‌کند و <span class="en">poller</span> (حلقه polling) را شروع می‌کند.</li>
+  <li>در <span class="en">shutdown</span>: poller را متوقف می‌کند.</li>
+  <li>اندپوینت <span class="en">GET /health</span>: فقط برای مانیتورینگ محلی (مثلاً <span class="en">systemd</span>) — وضعیت عامل، آخرین poll، تعداد دستورات اجراشده.</li>
+  <li>اندپوینت <span class="en">GET /</span>: پاسخ ساده برای اطمینان از زنده بودن پروسه.</li>
+</ul>
+<p class="box warn"><strong>مهم:</strong> هیچ اندپوینتی برای «اجرای دستور از راه دور» وجود ندارد. فقط <span class="en">/health</span> است.</p>
+
+<h3><span class="file-name">agent/config.py</span> <span class="tag">تنظیمات</span></h3>
+<p><strong>کار:</strong> تمام تنظیمات را از فایل <span class="file-name">agent/.env</span> با <span class="en">Pydantic Settings v2</span> می‌خواند.</p>
+<table>
+  <tr><th>متغیر</th><th>معنی</th></tr>
+  <tr><td><span class="en">AGENT_ID</span></td><td>شناسه یکتا این سرور (مثلاً prod-server-01)</td></tr>
+  <tr><td><span class="en">API_KEY</span></td><td>کلید API مشترک با سرور کنترل</td></tr>
+  <tr><td><span class="en">HMAC_SECRET</span></td><td>رمز امضای درخواست‌ها</td></tr>
+  <tr><td><span class="en">CONTROL_SERVER_URL</span></td><td>آدرس سرور کنترل (باید HTTPS در تولید)</td></tr>
+  <tr><td><span class="en">POLL_INTERVAL_SECONDS</span></td><td>فاصله polling (پیش‌فرض ۱۵ ثانیه)</td></tr>
+  <tr><td><span class="en">DOCKER_COMPOSE_FILE</span></td><td>مسیر فایل docker-compose.yml</td></tr>
+  <tr><td><span class="en">DOCKER_WORK_DIR</span></td><td>پوشه کاری دستورات Docker</td></tr>
+  <tr><td><span class="en">ALLOWED_SCRIPTS_DIR</span></td><td>پوشه اسکریپت‌های مجاز برای run_script</td></tr>
+  <tr><td><span class="en">REBOOT_CONFIRMATION_TOKEN</span></td><td>توکن اجباری برای reboot سرور</td></tr>
+  <tr><td><span class="en">COMMAND_TIMEOUT_SECONDS</span></td><td>حداکثر زمان اجرای دستور</td></tr>
+  <tr><td><span class="en">LOG_FILE</span></td><td>مسیر فایل لاگ ممیزی</td></tr>
+  <tr><td><span class="en">HEALTH_HOST / HEALTH_PORT</span></td><td>آدرس محلی سرویس health (پیش‌فرض 127.0.0.1:8080)</td></tr>
+</table>
+
+<h3><span class="file-name">agent/models.py</span> <span class="tag">ساختار داده</span></h3>
+<p><strong>کار:</strong> مدل‌های <span class="en">Pydantic</span> برای اعتبارسنجی JSON بین عامل و سرور کنترل.</p>
+<ul>
+  <li><span class="en">ActionType</span>: enum دستورات مجاز (docker_restart، docker_logs، server_reboot، ...)</li>
+  <li><span class="en">CommandPayload</span>: بدنه دستور دریافتی از poll</li>
+  <li><span class="en">ExecutionResult</span>: نتیجه اجرا برای ارسال به سرور کنترل</li>
+  <li><span class="en">HealthResponse</span>: پاسخ اندپوینت /health</li>
+  <li><span class="en">CommandStatus</span>: pending، running، success، failed، rejected</li>
+</ul>
+
+<h3><span class="file-name">agent/security.py</span> <span class="tag">امنیت</span></h3>
+<p><strong>کار:</strong> لایه امنیتی ارتباطات و لاگ ممیزی.</p>
+<ul>
+  <li><span class="en">setup_logging()</span>: لاگ به فایل + کنسول</li>
+  <li><span class="en">audit_event()</span>: ثبت رویدادهای امنیتی به صورت JSON در لاگ</li>
+  <li><span class="en">signed_headers() / signed_request()</span>: امضای HMAC-SHA256 هر درخواست خروجی</li>
+  <li>هدرها: <span class="en">X-API-Key</span>، <span class="en">X-Timestamp</span>، <span class="en">X-Nonce</span>، <span class="en">X-Signature</span></li>
+  <li><span class="en">RateLimiter</span>: محدودیت نرخ برای /health (جلوگیری از سوءاستفاده محلی)</li>
+</ul>
+<p>فرمت امضا: رشته کاننیکال از timestamp، nonce، method، path و hash بدنه — سپس HMAC با secret.</p>
+
+<h3><span class="file-name">agent/executor.py</span> <span class="tag">اجرای دستور</span></h3>
+<p><strong>کار:</strong> تنها جایی که دستور واقعاً روی سرور اجرا می‌شود — با قوانین سختگیرانه.</p>
+<ul>
+  <li><span class="en">_build_command()</span>: هر action را به لیست argv ثابت تبدیل می‌کند (مثلاً docker compose restart web)</li>
+  <li>نام سرویس Docker فقط حروف، عدد، خط تیره و زیرخط — با regex</li>
+  <li><span class="en">run_script</span>: فقط فایل‌های داخل ALLOWED_SCRIPTS_DIR و قابل اجرا — بدون path traversal</li>
+  <li><span class="en">server_reboot</span>: فقط اگر confirmation_token در params با تنظیمات یکی باشد</li>
+  <li><span class="en">_run_subprocess()</span>: asyncio + timeout — هرگز shell=True</li>
+  <li>خروجی بیش از حد مجاز truncate می‌شود</li>
+  <li><span class="en">execute_command()</span>: نقطه ورود اصلی — همیشه ExecutionResult برمی‌گرداند</li>
+</ul>
+
+<h3><span class="file-name">agent/poller.py</span> <span class="tag">حلقه polling</span></h3>
+<p><strong>کار:</strong> تسک پس‌زمینه asyncio که عامل را زنده نگه می‌دارد.</p>
+<ul>
+  <li><span class="en">AgentPoller.start()</span>: کلاینت httpx و تسک پس‌زمینه را می‌سازد</li>
+  <li>هر دوره: GET /api/v1/poll?agent_id=... → اگر دستور بود → execute → POST /api/v1/results</li>
+  <li>در صورت خطا: backoff نمایی (حداکثر ۵ دقیقه)</li>
+  <li>وضعیت برای /health: last_poll_at، commands_executed و غیره</li>
+  <li>شیء سراسری <span class="en">poller</span> در main.py استفاده می‌شود</li>
+</ul>
+
+<h3><span class="file-name">agent/.env.example</span></h3>
+<p>نمونه فایل محیط — کپی به <span class="file-name">.env</span> و مقادیر واقعی را پر کنید. هرگز .env را commit نکنید.</p>
+
+<h3><span class="file-name">agent/agent.service</span></h3>
+<p>فایل نمونه <span class="en">systemd</span> برای اجرای دائمی عامل به عنوان سرویس سیستم، با hardening امنیتی (NoNewPrivileges، ProtectSystem و ...).</p>
+
+<h3><span class="file-name">agent/__init__.py</span></h3>
+<p>فایل خالی پکیج — علامت می‌دهد agent یک ماژول پایتون است.</p>
+
+<div class="page-break"></div>
+
+<h2 id="control-folder">۴. پوشه <span class="file-name">control_server/</span> — سرور کنترل</h2>
+
+<p>سرور مرکزی که اپراتور و عامل‌ها با آن صحبت می‌کنند. در نسخه فعلی داده‌ها در حافظه (in-memory) است — برای تولید واقعی باید دیتابیس اضافه شود.</p>
+
+<h3><span class="file-name">control_server/main.py</span> <span class="tag">API سرور کنترل</span></h3>
+<p><strong>اندپوینت‌ها:</strong></p>
+<table>
+  <tr><th>متد و مسیر</th><th>چه کسی صدا می‌زند؟</th><th>کار</th></tr>
+  <tr>
+    <td><span class="en">GET /health</span></td>
+    <td>هر کسی</td>
+    <td>سلامت سرور کنترل</td>
+  </tr>
+  <tr>
+    <td><span class="en">POST /api/v1/commands</span></td>
+    <td>اپراتور (کلید Operator)</td>
+    <td>قرار دادن دستور در صف عامل مشخص</td>
+  </tr>
+  <tr>
+    <td><span class="en">GET /api/v1/poll</span></td>
+    <td>عامل (کلید Agent)</td>
+    <td>برداشتن یک دستور pending از صف</td>
+  </tr>
+  <tr>
+    <td><span class="en">POST /api/v1/results</span></td>
+    <td>عامل</td>
+    <td>ثبت نتیجه اجرا در تاریخچه</td>
+  </tr>
+  <tr>
+    <td><span class="en">GET /api/v1/history</span></td>
+    <td>اپراتور</td>
+    <td>مشاهده تاریخچه دستورات (فیلتر agent_id، limit)</td>
+  </tr>
+</table>
+<p>دو صف مجزا از نظر احراز هویت: <strong>Operator</strong> برای فرستادن دستور / تاریخچه — <strong>Agent</strong> برای poll و result.</p>
+
+<h3><span class="file-name">control_server/config.py</span></h3>
+<p>تنظیمات از <span class="file-name">control_server/.env</span>:</p>
+<ul>
+  <li><span class="en">AGENT_API_KEY / AGENT_HMAC_SECRET</span> — باید با API_KEY و HMAC_SECRET عامل یکی باشد</li>
+  <li><span class="en">OPERATOR_API_KEY / OPERATOR_HMAC_SECRET</span> — فقط برای اپراتور</li>
+  <li><span class="en">MAX_TIMESTAMP_SKEW_SECONDS</span> — تحمل اختلاف ساعت (جلوگیری از replay)</li>
+  <li><span class="en">RATE_LIMIT_*</span> — محدودیت درخواست</li>
+</ul>
+
+<h3><span class="file-name">control_server/security.py</span></h3>
+<p>آینه agent/security.py برای سمت سرور:</p>
+<ul>
+  <li>بررسی API key با compare_digest (ضد timing attack)</li>
+  <li>اعتبارسنجی timestamp و nonce (ضد replay)</li>
+  <li>محاسبه مجدد HMAC و مقایسه با X-Signature</li>
+  <li>RateLimiter بر اساس IP</li>
+</ul>
+
+<h3><span class="file-name">control_server/models.py</span></h3>
+<ul>
+  <li><span class="en">PushCommandRequest</span>: بدنه درخواست اپراتور برای صف کردن دستور</li>
+  <li><span class="en">QueuedCommand</span>: دستور در صف داخلی</li>
+  <li><span class="en">HistoryEntry / HistoryResponse</span>: خروجی تاریخچه</li>
+  <li>از مدل‌های agent.models برای ActionType و ExecutionResult استفاده مجدد می‌کند</li>
+</ul>
+
+<h3><span class="file-name">control_server/cli.py</span></h3>
+<p>ابزار خط فرمان برای اپراتور — بدون نوشتن کد، دستور امضا‌شده به سرور می‌فرستد:</p>
+<pre>uv run python -m control_server.cli push \
+  --url http://localhost:8000 \
+  --agent-id prod-server-01 \
+  --action docker_restart \
+  --service web</pre>
+<p>نیاز به متغیرهای محیطی OPERATOR_API_KEY و OPERATOR_HMAC_SECRET دارد.</p>
+
+<h3><span class="file-name">control_server/.env.example</span></h3>
+<p>نمونه تنظیمات سرور کنترل — کپی به .env و مقادیر امن تولید کنید.</p>
+
+<h2 id="root-files">۵. فایل‌های ریشه پروژه</h2>
+<table>
+  <tr><th>فایل</th><th>توضیح</th></tr>
+  <tr>
+    <td><span class="file-name">pyproject.toml</span></td>
+    <td>تعریف پروژه برای UV: نام، نسخه، وابستگی‌ها (fastapi، httpx، pydantic-settings)</td>
+  </tr>
+  <tr>
+    <td><span class="file-name">main.py</span> (ریشه)</td>
+    <td>نسخه قدیمی آزمایشی — جایگزین شده با agent/main.py؛ می‌توانید حذف کنید</td>
+  </tr>
+  <tr>
+    <td><span class="file-name">.python-version</span></td>
+    <td>نسخه پایتون برای UV (۳.۱۲+)</td>
+  </tr>
+  <tr>
+    <td><span class="file-name">docs/</span></td>
+    <td>همین مستندات و فونت فارسی برای PDF</td>
+  </tr>
+</table>
+
+<div class="page-break"></div>
+
+<h2 id="actions">۶. دستورات مجاز (Whitelist)</h2>
+<table>
+  <tr><th>Action</th><th>نیاز به service؟</th><th>توضیح</th></tr>
+  <tr><td><span class="en">docker_restart</span></td><td>بله</td><td>ری‌استارت سرویس در docker compose</td></tr>
+  <tr><td><span class="en">docker_rebuild</span></td><td>بله</td><td>build مجدد و up -d</td></tr>
+  <tr><td><span class="en">docker_logs</span></td><td>بله</td><td>لاگ — params.tail (پیش‌فرض ۱۰۰)</td></tr>
+  <tr><td><span class="en">docker_status</span></td><td>بله</td><td>وضعیت ps سرویس</td></tr>
+  <tr><td><span class="en">docker_stop</span></td><td>بله</td><td>توقف سرویس</td></tr>
+  <tr><td><span class="en">docker_start</span></td><td>بله</td><td>شروع سرویس</td></tr>
+  <tr><td><span class="en">server_reboot</span></td><td>خیر</td><td>ریبوت — نیاز به confirmation_token صحیح</td></tr>
+  <tr><td><span class="en">run_script</span></td><td>خیر</td><td>اجرای اسکریپت از پوشه مجاز — params.script_name</td></tr>
+</table>
+
+<h2 id="security">۷. نکات امنیتی</h2>
+<ul>
+  <li>عامل فقط به بیرون وصل می‌شود — پورت دستور از اینترنت باز نیست.</li>
+  <li>/health فقط روی 127.0.0.1 — از بیرون دیده نمی‌شود.</li>
+  <li>هر درخواست با API key + HMAC امضا می‌شود.</li>
+  <li>Nonce و timestamp از replay جلوگیری می‌کنند.</li>
+  <li>هیچ دستور دلخواهی اجرا نمی‌شود — فقط whitelist.</li>
+  <li>subprocess بدون shell — تزریق shell ممکن نیست.</li>
+  <li>کلیدها را با openssl rand -hex 32 بسازید؛ فایل .env را chmod 600 کنید.</li>
+  <li>در تولید: Control Server حتماً پشت HTTPS (مثلاً Nginx + Let's Encrypt).</li>
+  <li>کاربر عامل را به گروه docker اضافه کنید؛ reboot فقط با sudo محدود.</li>
+</ul>
+
+<h2 id="run">۸. نحوه اجرا با UV</h2>
+
+<h4>نصب وابستگی‌ها</h4>
+<pre>cd docker-anywhere
+uv sync</pre>
+
+<h4>سرور کنترل</h4>
+<pre>cp control_server/.env.example control_server/.env
+# ویرایش .env
+uv run uvicorn control_server.main:app --host 0.0.0.0 --port 8000</pre>
+
+<h4>عامل روی سرور تولید</h4>
+<pre>cp agent/.env.example agent/.env
+# API_KEY و HMAC_SECRET = AGENT_API_KEY و AGENT_HMAC_SECRET سرور کنترل
+uv run uvicorn agent.main:app --host 127.0.0.1 --port 8080</pre>
+
+<h4>فرستادن دستور</h4>
+<pre>export OPERATOR_API_KEY=...
+export OPERATOR_HMAC_SECRET=...
+uv run python -m control_server.cli push \
+  --agent-id prod-server-01 --action docker_status --service web</pre>
+
+<h4>systemd</h4>
+<pre>sudo cp agent/agent.service /etc/systemd/system/secure-agent.service
+sudo systemctl enable --now secure-agent</pre>
+
+<h2 id="new-action">۹. افزودن دستور جدید</h2>
+<ol>
+  <li>مقدار جدید به <span class="en">ActionType</span> در <span class="file-name">agent/models.py</span> اضافه کنید.</li>
+  <li>شاخه جدید در <span class="en">_build_command()</span> داخل <span class="file-name">agent/executor.py</span> — فقط argv ثابت با ورودی validate‌شده.</li>
+  <li>از CLI یا API سرور کنترل دستور را با action جدید بفرستید.</li>
+</ol>
+<p class="box warn">هرگز رشته shell خام از شبکه قبول نکنید. همیشه به لیست آرگومان ثابت map کنید.</p>
+
+<hr />
+<p style="font-size: 10pt; color: #666; text-align: center;">
+  مستندات پروژه docker-anywhere — تولید خودکار — FastAPI + UV + Outbound Polling Agent
+</p>
+
+</body>
+</html>

@@ -1,9 +1,17 @@
 [project]
 name = "docker-anywhere"
-version = "0.1.0"
-description = "Add your description here"
+version = "1.0.0"
+description = "Secure outbound-only polling agent for remote Docker/server management"
 readme = "README.md"
-requires-python = ">=3.14"
+requires-python = ">=3.12"
 dependencies = [
     "fastapi[standard]>=0.138.2",
+    "httpx>=0.28.0",
+    "pydantic-settings>=2.0.0",
 ]
+
+[project.scripts]
+secure-agent = "uvicorn:main"
+
+[tool.uv]
+package = false

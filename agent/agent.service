@@ -1,0 +1,60 @@
+# systemd unit for the Secure Polling Agent
+#
+# Install:
+#   sudo cp agent/agent.service /etc/systemd/system/secure-agent.service
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now secure-agent
+#
+# Logs:
+#   journalctl -u secure-agent -f
+#   tail -f /var/log/secure-agent/agent.log
+
+[Unit]
+Description=Secure Polling Agent (outbound-only remote command executor)
+Documentation=https://github.com/your-org/docker-anywhere
+After=network-online.target docker.service
+Wants=network-online.target
+Requires=docker.service
+
+[Service]
+Type=simple
+User=agent
+Group=agent
+
+# Working directory — place .env here
+WorkingDirectory=/opt/secure-agent
+
+# Environment file with secrets (restrict permissions: chmod 600)
+EnvironmentFile=/opt/secure-agent/.env
+
+# Run via UV (adjust path if uv is installed elsewhere)
+ExecStart=/home/agent/.local/bin/uv run uvicorn agent.main:app --host 127.0.0.1 --port 8080
+
+# Alternative without UV:
+# ExecStart=/opt/secure-agent/.venv/bin/uvicorn agent.main:app --host 127.0.0.1 --port 8080
+
+Restart=on-failure
+RestartSec=10
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+# Hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/log/secure-agent /opt/app
+PrivateTmp=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+RestrictNamespaces=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+
+# Allow reboot via sudo (for server_reboot action)
+# Configure /etc/sudoers.d/agent-reboot separately:
+#   agent ALL=(root) NOPASSWD: /sbin/reboot
+
+[Install]
+WantedBy=multi-user.target
