@@ -262,6 +262,131 @@ def build_pdf() -> None:
   pdf.write_rtl("۳. ارسال از CLI یا API — هرگز رشته shell خام قبول نکنید")
   pdf.box("هشدار: هر action جدید باید ورودی validate شود و به دستور از پیش تعریف‌شده map شود.")
 
+  # ── 10 Complete learning path (Persian, step-by-step) ───────────────────
+  pdf.add_page()
+  pdf.h2("۱۰. مسیر کامل: از عضو جدید تا توسعه‌دهنده حرفه‌ای")
+  pdf.write_rtl(
+    "این بخش را عنوان به عنوان نخوانید. مراحل شماره‌دار را به ترتیب انجام دهید. "
+    "بعد از هر مرحله یک جمله بنویسید که «الان چه می‌دانم». "
+    "هدف: شناخت کامل ساختار، خواندن، کاوش، و توسعه امن این پروژه در ۳ تا ۵ هفته."
+  )
+
+  pdf.h3("مرحله ۰ — ساختار کامل مخزن (قبل از هر کدی)")
+  pdf.write_ltr_block(
+    "docker-anywhere/\n"
+    "  pyproject.toml, .python-version, uv.lock\n"
+    "  agent/  -> main, config, models, security, executor, poller, .env.example, agent.service\n"
+    "  control_server/ -> main, config, models, security, cli, .env.example\n"
+    "  docs/ -> documentation-fa.html, generate_pdf.py, fonts/"
+  )
+  pdf.write_rtl("دو پروسه جدا: Control Server (پورت 8000، اپراتور + عامل) و Agent (پورت 8080 محلی، فقط /health).")
+
+  pdf.h3("مرحله ۱ — راه‌اندازی و اولین اجرا (روز ۱–۲)")
+  stage1 = [
+    "گام ۱.۱: نصب Python 3.12+ و UV. اجرای uv sync در ریشه پروژه.",
+    "گام ۱.۲: کپی control_server/.env.example به .env و agent/.env.example به .env. "
+    "API_KEY عامل = AGENT_API_KEY سرور. HMAC_SECRET = AGENT_HMAC_SECRET. AGENT_ID=prod-server-01.",
+    "گام ۱.۳: ترمینال ۱ — uv run uvicorn control_server.main:app --host 0.0.0.0 --port 8000. "
+    "باز کردن /health و /docs. باید ۵ endpoint ببینید.",
+    "گام ۱.۴: ترمینال ۲ — uv run uvicorn agent.main:app --host 127.0.0.1 --port 8080. "
+    "ظرف ۱۵ ثانیه poll در لاگ دیده شود. /health باید poller_running=true نشان دهد.",
+    "گام ۱.۵: ترمینال ۳ — push دستور docker_status با CLI. "
+    "command_id بگیرید. در لاگ عامل اجرا را ببینید. commands_executed افزایش یابد.",
+    "گام ۱.۶: رسم دیاگرام از حافظه: اپراتور - POST commands - صف - poll - executor - results - history.",
+  ]
+  for s in stage1:
+    pdf.write_rtl(s)
+
+  pdf.add_page()
+  pdf.h3("مرحله ۲ — خواندن هر فایل به ترتیب وابستگی (روز ۳–۷)")
+  stage2 = [
+    "گام ۲.۱: pyproject.toml و .python-version — FastAPI، httpx، pydantic-settings، UV.",
+    "گام ۲.۲: agent/models.py — ActionType (۸ action)، CommandStatus، CommandPayload، "
+    "ExecutionResult، HealthResponse. تمرین: توکن reboot در params است.",
+    "گام ۲.۳: control_server/models.py — PushCommandRequest، QueuedCommand، HistoryEntry. "
+    "ببینید ActionType از agent.models import می‌شود.",
+    "گام ۲.۴: agent/.env.example + agent/config.py و control_server/.env.example + config.py — "
+    "جدول تطابق env بین دو سرویس بنویسید.",
+    "گام ۲.۵: agent/security.py (signed_headers) سپس control_server/security.py (verify_signed_request) — "
+    "رشته کاننیکال، nonce، timestamp، compare_digest.",
+    "گام ۲.۶: control_server/main.py — _queues و _history در حافظه. "
+    "هر route: POST commands، GET poll، POST results، GET history. نقش Operator vs Agent.",
+    "گام ۲.۷: control_server/cli.py — تابع _sign و push_command و argparse.",
+    "گام ۲.۸: agent/executor.py — _build_command برای هر action، _run_subprocess بدون shell، "
+    "run_script با path traversal check، server_reboot با confirmation_token، execute_command.",
+    "گام ۲.۹: agent/poller.py — حلقه poll، httpx، backoff، به‌روزرسانی state برای health.",
+    "گام ۲.۱۰: agent/main.py — lifespan شروع/توقف poller، فقط /health و /.",
+    "گام ۲.۱۱: agent/agent.service — ExecStart و hardening systemd.",
+  ]
+  for s in stage2:
+    pdf.write_rtl(s)
+
+  pdf.h3("مرحله ۳ — کاوش عملی هر مسیر (هفته ۲)")
+  stage3 = [
+    "گام ۳.۱: هر action Docker را با CLI تست کنید: status، logs، restart، stop، start، rebuild. "
+    "لاگ عامل و history را بخوانید.",
+    "گام ۳.۲: تست رد امنیتی — کلید اشتباه (۴۰۱)، reboot بدون token (rejected)، نام سرویس نامعتبر (validation).",
+    "گام ۳.۳: breakpoint در main.py (push)، poller.py (دریافت دستور)، executor.py (execute_command). "
+    "یک دستور را قدم‌به‌قدم debug کنید.",
+    "گام ۳.۴: git log --oneline -20 — ببینید تیم اخیراً روی چه چیزی کار کرده.",
+  ]
+  for s in stage3:
+    pdf.write_rtl(s)
+
+  pdf.add_page()
+  pdf.h3("مرحله ۴ — اولین کارهای توسعه (هفته ۳)")
+  stage4 = [
+    "گام ۴.۱: افزودن action جدید (مثلاً docker_pull) — ActionType در models.py، "
+    "شاخه در _build_command() با argv ثابت، تست با CLI، به‌روزرسانی مستندات.",
+    "گام ۴.۲: تغییر POLL_INTERVAL_SECONDS در agent/.env — مشاهده poll سریع‌تر در /health.",
+    "گام ۴.۳: افزودن لاگ ساختاریافته در executor با audit_event موجود.",
+    "گام ۴.۴: چک‌لیست PR — بدون shell=True، بدون دستور خام از شبکه، "
+    "secret فقط در .env.example، auth جدا برای operator و agent، اعتبارسنجی Pydantic.",
+  ]
+  for s in stage4:
+    pdf.write_rtl(s)
+
+  pdf.h3("مرحله ۵ — تولید و عملیات (هفته ۴)")
+  stage5 = [
+    "گام ۵.۱: Control Server پشت HTTPS (Nginx + TLS). کلید با openssl rand -hex 32. "
+    "برنامه جایگزینی صف in-memory با PostgreSQL/Redis.",
+    "گام ۵.۲: نصب agent روی لینوکس — uv sync، agent/.env با chmod 600، "
+    "کاربر در گروه docker، systemd enable secure-agent، curl 127.0.0.1:8080/health.",
+    "گام ۵.۳: عیب‌یابی — عامل poll نمی‌کند (لاگ، شبکه، کلید)، "
+    "دستور pending ماند (agent_id یا agent خاموش)، failed (stderr در history).",
+  ]
+  for s in stage5:
+    pdf.write_rtl(s)
+
+  pdf.h3("مرحله ۶ — تسلط حرفه‌ای (هفته ۵ به بعد)")
+  stage6 = [
+    "گام ۶.۱: بدون نگاه به کد توضیح دهید: تفاوت auth اپراتور و عامل، "
+    "صف چند دستور، چرا outbound polling، خطر restart سرور کنترل.",
+    "گام ۶.۲: بتوانید اضافه کنید: action، API اپراتور، config، persistence، تست.",
+  ]
+  for s in stage6:
+    pdf.write_rtl(s)
+
+  pdf.h3("چک‌لیست تسلط (همه باید برقرار باشد)")
+  mastery = [
+    "رسم معماری و نقش هر فایل بدون یادداشت",
+    "خواندن خط‌به‌خط همه فایل‌های Python در agent و control_server",
+    "اجرای هر ۸ ActionType (یا دلیل عدم اجرا)",
+    "trace در debugger در سه لایه",
+    "حداقل یک تغییر end-to-end (action، لاگ، یا config)",
+    "توضیح HMAC و ضد replay به همکار",
+    "استقرار agent با systemd و control server با HTTPS",
+    "شناخت شکاف تولید (in-memory، نبود تست) و پیشنهاد راه‌حل",
+  ]
+  for m in mastery:
+    pdf.write_rtl("- " + m)
+
+  pdf.box(
+    "توسعه‌دهنده حرفه‌ای روی این پروژه کسی است که بدون نقشه فایل درست را باز کند، "
+    "باگ را از history تا executor در چند دقیقه trace کند، و هر PR که shell خام از شبکه "
+    "می‌پذیرد را رد کند. نسخه انگلیسی کامل با جزئیات بیشتر در documentation-fa.html بخش ۱۰."
+  )
+
   pdf.output(str(PDF_FILE))
   print(f"PDF created: {PDF_FILE}")
 

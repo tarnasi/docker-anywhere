@@ -164,6 +164,30 @@
       font-size: 9pt;
       margin-left: 4px;
     }
+
+    .section-en {
+      direction: ltr;
+      text-align: left;
+    }
+
+    .section-en h2, .section-en h3, .section-en h4 {
+      border-right: none;
+      border-left: 5px solid #2e86ab;
+      padding-right: 0;
+      padding-left: 12px;
+    }
+
+    .section-en ul, .section-en ol {
+      padding-right: 0;
+      padding-left: 22px;
+    }
+
+    .section-en .box { text-align: left; }
+    .section-en p { text-align: left; }
+    .section-en table th { text-align: left; }
+    .section-en table td { text-align: left; }
+
+    .checklist li::marker { color: #2e86ab; font-weight: 700; }
   </style>
 </head>
 <body>
@@ -192,6 +216,7 @@
   <li><a href="#security">امنیت</a></li>
   <li><a href="#run">نحوه اجرا</a></li>
   <li><a href="#new-action">افزودن دستور جدید</a></li>
+  <li><a href="#onboarding-en">مسیر کامل یادگیری تا توسعه حرفه‌ای (انگلیسی)</a></li>
 </ol>
 
 <h2 id="overview">۱. معرفی کلی پروژه</h2>
@@ -501,6 +526,385 @@ sudo systemctl enable --now secure-agent</pre>
   <li>از CLI یا API سرور کنترل دستور را با action جدید بفرستید.</li>
 </ol>
 <p class="box warn">هرگز رشته shell خام از شبکه قبول نکنید. همیشه به لیست آرگومان ثابت map کنید.</p>
+
+<div class="page-break"></div>
+
+<section class="section-en" lang="en" id="onboarding-en">
+
+<h2>10. Complete Path: From New Joiner to Professional Developer</h2>
+<p class="subtitle" style="text-align: left;">
+  Step-by-step reading, learning, exploring, and developing <span class="en">docker-anywhere</span> until you know the full structure
+</p>
+
+<div class="box">
+  <strong>How to use this section:</strong>
+  Do not skim the headings. Follow the numbered steps in order.
+  After each step, write one sentence in your notes answering the <em>“You should now know…”</em> question.
+  By the end you will understand every file, every API route, every action, and how to ship changes safely.
+</div>
+
+<h3>Stage 0 — Complete repository structure (read this first)</h3>
+<p>Before opening any code, memorize where everything lives:</p>
+
+<pre>docker-anywhere/
+├── pyproject.toml          # Project name, Python version, dependencies (UV)
+├── .python-version         # Python 3.12+ pin for UV
+├── uv.lock                 # Locked dependency versions
+├── agent/                  # Runs ON each production server
+│   ├── main.py             # FastAPI entry: lifespan, /health only
+│   ├── config.py           # Settings from agent/.env (Pydantic)
+│   ├── models.py           # Shared data contracts (ActionType, payloads)
+│   ├── security.py         # HMAC signing, audit log, rate limit
+│   ├── executor.py         # Whitelist → subprocess (core business logic)
+│   ├── poller.py           # Background loop: poll → execute → report
+│   ├── .env.example        # Template for agent secrets and paths
+│   └── agent.service       # systemd unit file for production
+├── control_server/         # Runs on ONE central server
+│   ├── main.py             # FastAPI API: queue, poll, results, history
+│   ├── config.py           # Settings from control_server/.env
+│   ├── models.py           # Queue/history models (imports agent.models)
+│   ├── security.py         # Verify HMAC on every inbound request
+│   ├── cli.py              # Operator CLI to push signed commands
+│   └── .env.example        # Template for operator + agent keys
+└── docs/
+    ├── documentation-fa.html # Full Persian + English documentation
+    ├── generate_pdf.py     # Script that builds the PDF
+    └── fonts/              # Vazirmatn for Persian PDF</pre>
+
+<p><strong>Two runtime processes, one repo:</strong></p>
+<table>
+  <tr><th>Process</th><th>Command</th><th>Who talks to it</th></tr>
+  <tr>
+    <td>Control Server</td>
+    <td><span class="en">uvicorn control_server.main:app --host 0.0.0.0 --port 8000</span></td>
+    <td>Operators (push, history) + Agents (poll, results)</td>
+  </tr>
+  <tr>
+    <td>Agent</td>
+    <td><span class="en">uvicorn agent.main:app --host 127.0.0.1 --port 8080</span></td>
+    <td>Only local /health; commands come via outbound poll</td>
+  </tr>
+</table>
+
+<div class="page-break"></div>
+
+<h3>Stage 1 — Setup and first run (Days 1–2)</h3>
+<p><strong>Goal:</strong> Environment works. You have seen one command flow with your own eyes.</p>
+
+<h4>Step 1.1 — Install tools</h4>
+<ol>
+  <li>Install Python 3.12+ and <a href="https://docs.astral.sh/uv/">UV</a>. Confirm: <span class="en">uv --version</span></li>
+  <li>Clone the repo. Open it in your editor.</li>
+  <li>Run <span class="en">uv sync</span> in the project root. This creates <span class="file-name">.venv/</span> and installs FastAPI, httpx, pydantic-settings.</li>
+</ol>
+<p><em>You should now know:</em> which package manager and Python version the team uses.</p>
+
+<h4>Step 1.2 — Create local config files</h4>
+<ol>
+  <li>Copy <span class="file-name">control_server/.env.example</span> → <span class="file-name">control_server/.env</span></li>
+  <li>Copy <span class="file-name">agent/.env.example</span> → <span class="file-name">agent/.env</span></li>
+  <li>Open both files side by side. Set <span class="en">agent/.env</span> → <span class="en">API_KEY</span> = <span class="en">control_server/.env</span> → <span class="en">AGENT_API_KEY</span> (same value)</li>
+  <li>Do the same for <span class="en">HMAC_SECRET</span> and <span class="en">AGENT_HMAC_SECRET</span></li>
+  <li>Set <span class="en">AGENT_ID=prod-server-01</span> in agent/.env (must match what you use in CLI later)</li>
+  <li>Set <span class="en">CONTROL_SERVER_URL=http://localhost:8000</span> in agent/.env</li>
+</ol>
+<p><em>You should now know:</em> which secrets must match between the two services.</p>
+
+<h4>Step 1.3 — Start control server (Terminal 1)</h4>
+<pre>cd docker-anywhere
+uv run uvicorn control_server.main:app --host 0.0.0.0 --port 8000 --reload</pre>
+<ol>
+  <li>Wait for “Application startup complete”.</li>
+  <li>Open browser: <span class="en">http://localhost:8000/health</span> — expect JSON with status ok.</li>
+  <li>Open <span class="en">http://localhost:8000/docs</span> — see Swagger UI with all 5 API routes.</li>
+</ol>
+<p><em>You should now know:</em> the control server is reachable and exposes operator + agent endpoints.</p>
+
+<h4>Step 1.4 — Start agent (Terminal 2)</h4>
+<pre>uv run uvicorn agent.main:app --host 127.0.0.1 --port 8080 --reload</pre>
+<ol>
+  <li>Watch Terminal 2 logs: within 15 seconds you should see a poll attempt to the control server.</li>
+  <li>Open <span class="en">http://127.0.0.1:8080/health</span> — check <span class="en">poller_running: true</span> and <span class="en">last_poll_at</span> updating.</li>
+</ol>
+<p><em>You should now know:</em> the agent polls outbound automatically; nothing pushes commands to the agent.</p>
+
+<h4>Step 1.5 — Push your first command (Terminal 3)</h4>
+<pre>set OPERATOR_API_KEY=&lt;from control_server/.env&gt;
+set OPERATOR_HMAC_SECRET=&lt;from control_server/.env&gt;
+
+uv run python -m control_server.cli push ^
+  --url http://localhost:8000 ^
+  --agent-id prod-server-01 ^
+  --action docker_status ^
+  --service web</pre>
+<ol>
+  <li>CLI prints a <span class="en">command_id</span> on success.</li>
+  <li>Within ~15 seconds, agent Terminal 2 shows poll + execute logs.</li>
+  <li>If Docker is not installed locally, execution may fail — that is OK. Check <span class="en">/health</span> on agent: <span class="en">commands_executed</span> should increment.</li>
+</ol>
+<p><em>You should now know:</em> operator → queue → agent poll → executor → result is a real loop, not theory.</p>
+
+<h4>Step 1.6 — Draw the flow from memory</h4>
+<p>On paper, draw: Operator → POST /commands → Queue → Agent GET /poll → executor → POST /results → History.</p>
+<p>Keep this diagram. You will update it in every later stage.</p>
+
+<div class="page-break"></div>
+
+<h3>Stage 2 — Read every file in dependency order (Days 3–7)</h3>
+<p><strong>Goal:</strong> Understand each module before the one that imports it. Read top to bottom in each file; use “Go to definition” for unknown types.</p>
+
+<h4>Step 2.1 — <span class="file-name">pyproject.toml</span> + <span class="file-name">.python-version</span></h4>
+<ol>
+  <li>Read <span class="file-name">pyproject.toml</span> line by line: project name, <span class="en">requires-python &gt;=3.12</span>, dependencies list.</li>
+  <li>Note: <span class="en">fastapi[standard]</span> (web framework + uvicorn), <span class="en">httpx</span> (async HTTP client in poller), <span class="en">pydantic-settings</span> (env config).</li>
+  <li>Read <span class="file-name">.python-version</span> — confirms 3.12.</li>
+</ol>
+<p><em>You should now know:</em> the stack is async FastAPI + Pydantic v2 + httpx, managed with UV.</p>
+
+<h4>Step 2.2 — <span class="file-name">agent/models.py</span> (vocabulary of the whole system)</h4>
+<ol>
+  <li>Read <span class="en">ActionType</span> enum — list all 8 allowed actions on paper.</li>
+  <li>Read <span class="en">CommandStatus</span> — pending → running → success/failed/rejected.</li>
+  <li>Read <span class="en">CommandPayload</span> — fields: command_id, action, service, params. Read the <span class="en">validate_service_name</span> validator.</li>
+  <li>Read <span class="en">PollResponse</span>, <span class="en">ExecutionResult</span>, <span class="en">HealthResponse</span>.</li>
+  <li><strong>Exercise:</strong> For <span class="en">server_reboot</span>, which field carries the confirmation token? (Answer: <span class="en">params</span>)</li>
+</ol>
+<p><em>You should now know:</em> every JSON shape crossing the network between agent and control server.</p>
+
+<h4>Step 2.3 — <span class="file-name">control_server/models.py</span></h4>
+<ol>
+  <li>See how it <strong>reuses</strong> <span class="en">ActionType</span> and <span class="en">ExecutionResult</span> from <span class="file-name">agent/models.py</span> — one source of truth.</li>
+  <li>Read <span class="en">PushCommandRequest</span> (what operator sends), <span class="en">QueuedCommand</span> (internal queue item), <span class="en">HistoryEntry</span>.</li>
+</ol>
+<p><em>You should now know:</em> operator input vs internal queue vs history output are three different models.</p>
+
+<h4>Step 2.4 — <span class="file-name">agent/config.py</span> and <span class="file-name">control_server/config.py</span></h4>
+<ol>
+  <li>Read <span class="file-name">agent/.env.example</span> first, then <span class="file-name">agent/config.py</span> — match each env var to a Settings field.</li>
+  <li>Do the same for control_server.</li>
+  <li>Make a table in your notes: Agent env var ↔ Control Server env var (API_KEY ↔ AGENT_API_KEY, etc.).</li>
+</ol>
+<p><em>You should now know:</em> every tunable setting and which file reads it.</p>
+
+<h4>Step 2.5 — <span class="file-name">agent/security.py</span> then <span class="file-name">control_server/security.py</span></h4>
+<ol>
+  <li>Agent side: read <span class="en">signed_headers()</span> — how canonical string is built (timestamp, nonce, method, path, body hash).</li>
+  <li>Control server side: read <span class="en">verify_signed_request()</span> — same canonical string, compare HMAC with <span class="en">hmac.compare_digest</span>.</li>
+  <li>Find <span class="en">MAX_TIMESTAMP_SKEW</span> — why replay attacks are blocked.</li>
+  <li>Find nonce storage — used nonces cannot be reused.</li>
+</ol>
+<p><em>You should now know:</em> how to sign a request manually and what happens if signature or key is wrong (401).</p>
+
+<h4>Step 2.6 — <span class="file-name">control_server/main.py</span> (central API)</h4>
+<ol>
+  <li>Read module-level <span class="en">_queues</span> and <span class="en">_history</span> — in-memory stores (production gap).</li>
+  <li>Read auth dependencies: operator vs agent — different API keys.</li>
+  <li>For each route, read handler in order:
+    <ul>
+      <li><span class="en">POST /api/v1/commands</span> — validate body → append to agent queue → add to history</li>
+      <li><span class="en">GET /api/v1/poll</span> — pop one pending command for agent_id</li>
+      <li><span class="en">POST /api/v1/results</span> — update history entry with ExecutionResult</li>
+      <li><span class="en">GET /api/v1/history</span> — filter and return past commands</li>
+    </ul>
+  </li>
+</ol>
+<p><em>You should now know:</em> exact HTTP contract of the control server and where data is stored.</p>
+
+<h4>Step 2.7 — <span class="file-name">control_server/cli.py</span></h4>
+<ol>
+  <li>Read <span class="en">_sign()</span> — duplicates signing logic from agent (operator client).</li>
+  <li>Read <span class="en">push_command()</span> — builds JSON body, POSTs to /api/v1/commands.</li>
+  <li>Read <span class="en">argparse</span> setup — flags: --url, --agent-id, --action, --service, --params.</li>
+</ol>
+<p><em>You should now know:</em> how operators send commands without writing Python app code.</p>
+
+<h4>Step 2.8 — <span class="file-name">agent/executor.py</span> (most important business logic)</h4>
+<ol>
+  <li>Read <span class="en">_build_command()</span> — one branch per ActionType. See how each maps to fixed argv list.</li>
+  <li>Read <span class="en">_run_subprocess()</span> — asyncio.create_subprocess_exec, timeout, no shell=True.</li>
+  <li>Read <span class="en">run_script</span> path validation — no <span class="en">../</span>, only files inside ALLOWED_SCRIPTS_DIR.</li>
+  <li>Read <span class="en">server_reboot</span> — checks confirmation_token in params.</li>
+  <li>Read <span class="en">execute_command()</span> — top-level: try build → run → return ExecutionResult always.</li>
+</ol>
+<p><em>You should now know:</em> why arbitrary shell commands are impossible and how each action becomes a safe subprocess.</p>
+
+<h4>Step 2.9 — <span class="file-name">agent/poller.py</span></h4>
+<ol>
+  <li>Read <span class="en">AgentPoller.start()</span> — creates httpx AsyncClient, starts background task.</li>
+  <li>Read the poll loop: sleep → GET /poll → if command → execute_command → POST /results.</li>
+  <li>Read error handling — exponential backoff on network failure.</li>
+  <li>Read state updated for /health: last_poll_at, commands_executed.</li>
+</ol>
+<p><em>You should now know:</em> the agent’s entire lifecycle between polls.</p>
+
+<h4>Step 2.10 — <span class="file-name">agent/main.py</span></h4>
+<ol>
+  <li>Read <span class="en">lifespan</span> — setup_logging → poller.start() on startup, poller.stop() on shutdown.</li>
+  <li>Read <span class="en">GET /health</span> — returns HealthResponse from poller state.</li>
+  <li>Confirm: no route accepts remote commands. Only / and /health exist.</li>
+</ol>
+<p><em>You should now know:</em> agent FastAPI app is a thin shell around the poller + local health check.</p>
+
+<h4>Step 2.11 — <span class="file-name">agent/agent.service</span></h4>
+<ol>
+  <li>Read ExecStart line — how uvicorn is started in production.</li>
+  <li>Read security hardening: NoNewPrivileges, ProtectSystem, PrivateTmp, etc.</li>
+</ol>
+<p><em>You should now know:</em> how the agent is deployed as a systemd service on Linux servers.</p>
+
+<div class="page-break"></div>
+
+<h3>Stage 3 — Explore every path hands-on (Week 2)</h3>
+<p><strong>Goal:</strong> Run each action, trigger failures, read logs. Exploration beats passive reading.</p>
+
+<h4>Step 3.1 — Test each Docker action</h4>
+<p>For each action below, run CLI push, wait one poll cycle, read agent logs and history:</p>
+<table>
+  <tr><th>Action</th><th>CLI example</th><th>What to observe</th></tr>
+  <tr><td>docker_status</td><td><span class="en">--action docker_status --service web</span></td><td>stdout from docker compose ps</td></tr>
+  <tr><td>docker_logs</td><td><span class="en">--action docker_logs --service web</span></td><td>last N log lines (params.tail)</td></tr>
+  <tr><td>docker_restart</td><td><span class="en">--action docker_restart --service web</span></td><td>container restarts</td></tr>
+  <tr><td>docker_stop / docker_start</td><td>same pattern</td><td>service state changes</td></tr>
+  <tr><td>docker_rebuild</td><td><span class="en">--action docker_rebuild --service web</span></td><td>longer run, build output in stdout</td></tr>
+</table>
+
+<h4>Step 3.2 — Test security rejections</h4>
+<ol>
+  <li>Push with wrong <span class="en">OPERATOR_API_KEY</span> — expect 401 from control server.</li>
+  <li>Push <span class="en">server_reboot</span> without correct <span class="en">confirmation_token</span> in params — expect rejected status in result.</li>
+  <li>Push with invalid service name <span class="en">web;rm -rf /</span> — expect validation error before queue.</li>
+</ol>
+<p><em>You should now know:</em> how the system fails safely at each layer.</p>
+
+<h4>Step 3.3 — Trace one command in the debugger</h4>
+<ol>
+  <li>Set breakpoint in <span class="file-name">control_server/main.py</span> at the push handler.</li>
+  <li>Set breakpoint in <span class="file-name">agent/poller.py</span> where poll returns a command.</li>
+  <li>Set breakpoint in <span class="file-name">agent/executor.py</span> at <span class="en">execute_command()</span>.</li>
+  <li>Push one command. Step through all three. Watch variables: QueuedCommand → CommandPayload → ExecutionResult.</li>
+</ol>
+<p><em>You should now know:</em> the exact object shapes at each hop.</p>
+
+<h4>Step 3.4 — Read git history</h4>
+<pre>git log --oneline -20
+git log --follow agent/executor.py</pre>
+<p>See what changed recently. This tells you what the team prioritizes.</p>
+
+<div class="page-break"></div>
+
+<h3>Stage 4 — First development tasks (Week 3)</h3>
+<p><strong>Goal:</strong> Ship small, safe changes using existing patterns. Do not invent new architecture.</p>
+
+<h4>Step 4.1 — Task A: Add a new whitelisted action</h4>
+<p>Example: <span class="en">docker_pull</span> — pull latest image for a service.</p>
+<ol>
+  <li>Open <span class="file-name">agent/models.py</span>. Add <span class="en">DOCKER_PULL = "docker_pull"</span> to <span class="en">ActionType</span>.</li>
+  <li>Open <span class="file-name">agent/executor.py</span>. In <span class="en">_build_command()</span>, add a branch:
+    <pre>elif action == ActionType.DOCKER_PULL:
+    if not service:
+        raise ValueError("service required for docker_pull")
+  return ["docker", "compose", "-f", compose_file,
+          "pull", service]</pre>
+  </li>
+  <li>Restart agent. Push: <span class="en">--action docker_pull --service web</span></li>
+  <li>Verify in history: status success, sensible stdout.</li>
+  <li>Update Section 6 (actions table) in this documentation.</li>
+</ol>
+
+<h4>Step 4.2 — Task B: Add env var for poll interval override per environment</h4>
+<ol>
+  <li>Confirm <span class="en">POLL_INTERVAL_SECONDS</span> already exists in <span class="file-name">agent/config.py</span>.</li>
+  <li>Change it in <span class="file-name">agent/.env</span> to 5. Restart agent. Confirm polls happen faster via /health timestamps.</li>
+</ol>
+
+<h4>Step 4.3 — Task C: Improve observability</h4>
+<ol>
+  <li>Add one structured log line in <span class="file-name">agent/executor.py</span> after subprocess completes (duration, action, returncode).</li>
+  <li>Use existing <span class="en">audit_event()</span> from <span class="file-name">agent/security.py</span> — match the pattern already there.</li>
+</ol>
+
+<h4>Step 4.4 — Code review checklist (use before every PR)</h4>
+<ol>
+  <li>No <span class="en">shell=True</span> anywhere in new code.</li>
+  <li>No user-controlled strings passed as shell commands — only whitelisted argv.</li>
+  <li>New secrets go in <span class="file-name">.env.example</span>, not hardcoded.</li>
+  <li>Operator and agent auth remain separate.</li>
+  <li>Pydantic models validate all new fields.</li>
+</ol>
+
+<div class="page-break"></div>
+
+<h3>Stage 5 — Production and operations (Week 4)</h3>
+<p><strong>Goal:</strong> Understand how this runs outside your laptop.</p>
+
+<h4>Step 5.1 — Deploy control server</h4>
+<ol>
+  <li>Control server must be on HTTPS in production (Nginx + TLS in front of uvicorn).</li>
+  <li>Generate production keys: <span class="en">openssl rand -hex 32</span> for each secret.</li>
+  <li>Set <span class="en">CONTROL_SERVER_URL=https://control.example.com</span> on each agent.</li>
+  <li>Plan to replace in-memory <span class="en">_queues</span> / <span class="en">_history</span> with PostgreSQL or Redis.</li>
+</ol>
+
+<h4>Step 5.2 — Deploy agent on Linux server</h4>
+<ol>
+  <li>Copy project to server. Run <span class="en">uv sync</span>.</li>
+  <li>Create <span class="file-name">agent/.env</span> with production values. <span class="en">chmod 600 agent/.env</span>.</li>
+  <li>Add agent user to <span class="en">docker</span> group if Docker actions are needed.</li>
+  <li>Install <span class="file-name">agent/agent.service</span> → <span class="en">/etc/systemd/system/secure-agent.service</span></li>
+  <li><span class="en">systemctl enable --now secure-agent</span></li>
+  <li>Check: <span class="en">curl http://127.0.0.1:8080/health</span> on the server.</li>
+</ol>
+
+<h4>Step 5.3 — Operate the system</h4>
+<ol>
+  <li>Agent stops polling → check agent logs, network egress to control server, API keys.</li>
+  <li>Command stuck pending → agent down or wrong agent_id in queue.</li>
+  <li>Command failed → read stderr in history; usually Docker path or permissions.</li>
+</ol>
+
+<div class="page-break"></div>
+
+<h3>Stage 6 — Professional mastery (Week 5+)</h3>
+<p><strong>Goal:</strong> You can design changes, review others’ code, and explain trade-offs.</p>
+
+<h4>Step 6.1 — You understand the full data flow</h4>
+<p>Without looking at code, explain aloud:</p>
+<ol>
+  <li>How operator auth differs from agent auth.</li>
+  <li>What happens if two commands are queued for one agent.</li>
+  <li>Why outbound polling solves the production firewall problem.</li>
+  <li>Why in-memory storage is risky and what breaks on control server restart.</li>
+</ol>
+
+<h4>Step 6.2 — You can extend the system correctly</h4>
+<ul>
+  <li>Add new actions (executor + ActionType)</li>
+  <li>Add operator API endpoints (main.py + models + security)</li>
+  <li>Change poll interval, timeouts, rate limits (config)</li>
+  <li>Add persistence layer (replace _queues / _history)</li>
+  <li>Add tests for executor argv building and security verification</li>
+</ul>
+
+<h4>Step 6.3 — Mastery checklist (all must be true)</h4>
+<ol class="checklist">
+  <li>I can draw the full architecture and every file’s role without notes.</li>
+  <li>I have read every Python file in agent/ and control_server/ line by line.</li>
+  <li>I have run all 8 ActionTypes (or know why Docker blocked some).</li>
+  <li>I have traced a command in the debugger across all three layers.</li>
+  <li>I have shipped at least one change (new action, log, or config) end-to-end.</li>
+  <li>I can explain HMAC signing and replay protection to a teammate.</li>
+  <li>I know how to deploy agent with systemd and control server behind HTTPS.</li>
+  <li>I know the production gaps (in-memory queue, no tests yet) and can propose fixes.</li>
+</ol>
+
+<div class="box">
+  <strong>You are a professional on this app when:</strong>
+  You do not need a map to open the right file. You trace bugs from history → poller → executor in minutes.
+  You add features by copying existing patterns. You challenge any PR that accepts raw shell from the network.
+  This path typically takes 3–5 weeks of focused work — not one day, not one month of passive reading.
+</div>
+
+</section>
 
 <hr />
 <p style="font-size: 10pt; color: #666; text-align: center;">

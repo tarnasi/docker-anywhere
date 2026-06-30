@@ -5,6 +5,7 @@ description = "Secure outbound-only polling agent for remote Docker/server manag
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "arabic-reshaper>=3.0.1",
     "fastapi[standard]>=0.138.2",
     "httpx>=0.28.0",
     "pydantic-settings>=2.0.0",
