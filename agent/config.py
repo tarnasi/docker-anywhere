@@ -12,7 +12,8 @@ from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
-_ENV_FILE = Path(__file__).resolve().parent / ".env"
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent
+_ENV_FILE = _PROJECT_ROOT / "agent" / ".env"
 
 
 class Settings(BaseSettings):
@@ -108,8 +109,8 @@ class Settings(BaseSettings):
 
     # ── Logging ───────────────────────────────────────────────────────────────
     log_file: Path = Field(
-        default=Path("/var/log/secure-agent/agent.log"),
-        description="Path to the agent audit/application log file.",
+        default=_PROJECT_ROOT / "logs" / "agent.log",
+        description="Path to the agent log file (default: project logs/agent.log).",
     )
     log_level: str = Field(
         default="INFO",

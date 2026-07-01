@@ -34,29 +34,36 @@ def setup_logging() -> None:
     """
     log_level = getattr(logging, settings.log_level, logging.INFO)
 
-    # Ensure parent directory exists
-    settings.log_file.parent.mkdir(parents=True, exist_ok=True)
-
     formatter = logging.Formatter(
         fmt="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s",
         datefmt="%Y-%m-%dT%H:%M:%S%z",
     )
 
-    file_handler = logging.FileHandler(settings.log_file, encoding="utf-8")
-    file_handler.setFormatter(formatter)
-
     stream_handler = logging.StreamHandler()
     stream_handler.setFormatter(formatter)
+
+    handlers: list[logging.Handler] = [stream_handler]
+
+    try:
+        settings.log_file.parent.mkdir(parents=True, exist_ok=True)
+        file_handler = logging.FileHandler(settings.log_file, encoding="utf-8")
+        file_handler.setFormatter(formatter)
+        handlers.append(file_handler)
+    except OSError as exc:
+        logging.getLogger("agent").warning(
+            "file logging disabled (%s): %s", settings.log_file, exc
+        )
 
     root = logging.getLogger("agent")
     root.setLevel(log_level)
     root.handlers.clear()
-    root.addHandler(file_handler)
-    root.addHandler(stream_handler)
+    for handler in handlers:
+        root.addHandler(handler)
 
     audit_logger.setLevel(logging.INFO)
     audit_logger.handlers.clear()
-    audit_logger.addHandler(file_handler)
+    for handler in handlers:
+        audit_logger.addHandler(handler)
     audit_logger.propagate = False
 
 
