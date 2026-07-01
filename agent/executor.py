@@ -24,6 +24,14 @@ _SERVICE_RE = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9_.-]*$")
 _SCRIPT_RE = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9_.-]*$")
 _IMAGE_RE = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9._/@: -]+$")
 _NETWORK_RE = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9_.-]*$")
+_PROJECT_PATH_RE = re.compile(r"^/[a-zA-Z0-9._/-]+$")
+
+_COMPOSE_PATH_ACTIONS = {
+    ActionType.COMPOSE_PROJECT_UP,
+    ActionType.COMPOSE_PROJECT_DOWN_RMI,
+    ActionType.COMPOSE_PROJECT_UP_FORCE,
+    ActionType.COMPOSE_PROJECT_BUILD_NOCACHE,
+}
 
 _CONTAINER_ACTIONS = {
     ActionType.DOCKER_RESTART,
@@ -48,6 +56,18 @@ def _validate_service(service: str | None, action: ActionType) -> str:
         if not _SERVICE_RE.match(service):
             raise CommandRejectedError(f"invalid service name: {service!r}")
     return service or ""
+
+
+def _validate_project_path(cmd: CommandPayload) -> Path:
+    path = cmd.params.get("project_path")
+    if not path or not isinstance(path, str):
+        raise CommandRejectedError("project_path required in params")
+    if not _PROJECT_PATH_RE.match(path):
+        raise CommandRejectedError(f"invalid project_path: {path!r}")
+    resolved = Path(path).resolve()
+    if not resolved.is_dir():
+        raise CommandRejectedError(f"project_path not found: {path}")
+    return resolved
 
 
 def _fallback_compose_project() -> ComposeProject | None:
@@ -92,6 +112,22 @@ def _build_command(cmd: CommandPayload) -> list[str]:
 
     if action == ActionType.DOCKER_COMPOSE_DOWN:
         return ["__compose_down_all__"]
+
+    if action == ActionType.COMPOSE_PROJECT_UP:
+        path = _validate_project_path(cmd)
+        return ["__compose_in_path__", str(path), "up", "-d"]
+
+    if action == ActionType.COMPOSE_PROJECT_DOWN_RMI:
+        path = _validate_project_path(cmd)
+        return ["__compose_in_path__", str(path), "down", "--rmi", "local"]
+
+    if action == ActionType.COMPOSE_PROJECT_UP_FORCE:
+        path = _validate_project_path(cmd)
+        return ["__compose_in_path__", str(path), "up", "-d", "--force-recreate"]
+
+    if action == ActionType.COMPOSE_PROJECT_BUILD_NOCACHE:
+        path = _validate_project_path(cmd)
+        return ["__compose_in_path__", str(path), "build", "--no-cache"]
 
     if action == ActionType.CONTAINERS_STOP_ALL:
         return ["__stop_all_containers__"]
@@ -319,6 +355,14 @@ async def execute_command(cmd: CommandPayload) -> ExecutionResult:
         elif argv == ["__compose_down_all__"]:
             stdout, stderr, returncode = await _run_compose_on_projects(
                 await _get_compose_projects(), ["down"]
+            )
+
+        elif len(argv) >= 2 and argv[0] == "__compose_in_path__":
+            project_path = Path(argv[1])
+            compose_args = argv[2:]
+            stdout, stderr, returncode = await _run_subprocess(
+                ["docker", "compose", *compose_args],
+                cwd=project_path,
             )
 
         elif len(argv) == 2 and argv[0] == "__compose_rebuild__":

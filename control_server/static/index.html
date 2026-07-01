@@ -44,6 +44,18 @@
           <p style="font-size:.85rem;color:var(--muted);margin-top:.35rem">Last inventory sync: <span id="last-sync">—</span></p>
         </div>
         <div class="card">
+          <h2>Compose Project</h2>
+          <label for="project-select">Project directory</label>
+          <select id="project-select"></select>
+          <div class="btn-row" style="margin-top:.5rem">
+            <button class="btn btn-primary btn-sm" data-compose-action="compose_project_up">Up -d</button>
+            <button class="btn btn-danger btn-sm" data-compose-action="compose_project_down_rmi">Down --rmi local</button>
+            <button class="btn btn-primary btn-sm" data-compose-action="compose_project_up_force">Up --force-recreate</button>
+            <button class="btn btn-primary btn-sm" data-compose-action="compose_project_build_nocache">Build --no-cache</button>
+          </div>
+          <p id="compose-msg" class="alert alert-info hidden" style="margin-top:.75rem;margin-bottom:0"></p>
+        </div>
+        <div class="card">
           <h2>Quick Execute</h2>
           <label>Command template</label>
           <select id="quick-template"></select>
@@ -63,6 +75,7 @@
                 <th>Image</th>
                 <th>Status</th>
                 <th>Project Path</th>
+                <th>Actions</th>
               </tr>
             </thead>
             <tbody id="containers-body"></tbody>

@@ -1,9 +1,18 @@
 const ACTIONS = [
   "docker_restart", "docker_rebuild", "docker_logs", "docker_status",
   "docker_stop", "docker_start", "docker_compose_up", "docker_compose_down",
+  "compose_project_up", "compose_project_down_rmi", "compose_project_up_force",
+  "compose_project_build_nocache",
   "containers_stop_all", "containers_remove_all", "image_pull", "image_remove",
   "network_create", "network_remove", "inventory_sync", "run_script", "server_reboot",
 ];
+
+const COMPOSE_LABELS = {
+  compose_project_up: "docker compose up -d",
+  compose_project_down_rmi: "docker compose down --rmi local",
+  compose_project_up_force: "docker compose up -d --force-recreate",
+  compose_project_build_nocache: "docker compose build --no-cache",
+};
 
 const state = {
   token: localStorage.getItem("ui_token") || "",
@@ -73,6 +82,39 @@ async function createOrder(body) {
   return api("/api/ui/orders", { method: "POST", body: JSON.stringify(body) });
 }
 
+function uniqueProjectPaths(containers) {
+  const paths = new Set();
+  for (const c of containers) {
+    if (c.project_path) paths.add(c.project_path);
+  }
+  return [...paths].sort();
+}
+
+function populateProjectSelect(paths, selected) {
+  const sel = $("#project-select");
+  if (!paths.length) {
+    sel.innerHTML = `<option value="">No project paths synced yet</option>`;
+    sel.disabled = true;
+    return;
+  }
+  sel.disabled = false;
+  sel.innerHTML = paths.map(p =>
+    `<option value="${p}" ${p === selected ? "selected" : ""}>${p}</option>`
+  ).join("");
+}
+
+async function queueComposeAction(action, projectPath) {
+  if (!projectPath) throw new Error("Select a project directory first");
+  const label = COMPOSE_LABELS[action] || action;
+  if (!confirm(`Run in ${projectPath}?\n\n${label}`)) return false;
+  await createOrder({
+    agent_id: state.agentId,
+    action,
+    params: { project_path: projectPath },
+  });
+  return true;
+}
+
 async function refreshDashboard() {
   const [status, containers, images, networks, active] = await Promise.all([
     api("/api/ui/status"),
@@ -101,6 +143,10 @@ async function refreshDashboard() {
 
   $("#last-poll").textContent = fmtDate(status.api_log?.last_agent_poll_at);
   $("#last-sync").textContent = fmtDate(status.api_log?.last_inventory_sync_at);
+
+  const paths = uniqueProjectPaths(containers.filter(c => c.agent_id === state.agentId));
+  const current = $("#project-select")?.value;
+  populateProjectSelect(paths, paths.includes(current) ? current : paths[0]);
 }
 
 async function refreshContainers() {
@@ -113,8 +159,21 @@ async function refreshContainers() {
       <td class="mono">${c.image || "—"}</td>
       <td>${statusBadge(c.status)}</td>
       <td class="mono">${c.project_path || "—"}</td>
+      <td>
+        ${c.project_path
+          ? `<button class="btn btn-primary btn-sm" data-compose-up="${c.project_path}">Up</button>`
+          : "—"}
+      </td>
     </tr>
   `).join("");
+  tbody.querySelectorAll("[data-compose-up]").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      try {
+        const ok = await queueComposeAction("compose_project_up", btn.dataset.composeUp);
+        if (ok) alert("Compose up order queued.");
+      } catch (e) { alert(e.message); }
+    });
+  });
   $("#containers-empty").classList.toggle("hidden", filtered.length > 0);
 }
 
@@ -289,6 +348,28 @@ function bindEvents() {
 
   $$("nav.bottom-nav button").forEach(btn => {
     btn.addEventListener("click", () => showView(btn.dataset.view));
+  });
+
+  $$("[data-compose-action]").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      const msg = $("#compose-msg");
+      try {
+        const ok = await queueComposeAction(
+          btn.dataset.composeAction,
+          $("#project-select").value,
+        );
+        if (ok) {
+          msg.textContent = "Order queued. Agent will run on next poll.";
+          msg.className = "alert alert-info";
+          msg.classList.remove("hidden");
+          refreshDashboard();
+        }
+      } catch (e) {
+        msg.textContent = e.message;
+        msg.className = "alert alert-error";
+        msg.classList.remove("hidden");
+      }
+    });
   });
 
   $("#quick-run-btn").addEventListener("click", async () => {
