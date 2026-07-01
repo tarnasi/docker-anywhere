@@ -131,9 +131,12 @@ class Settings(BaseSettings):
 
     @field_validator("control_server_url")
     @classmethod
-    def strip_trailing_slash(cls, v: str) -> str:
-        """Normalize base URL to avoid double-slash path joins."""
-        return v.rstrip("/")
+    def normalize_control_server_url(cls, v: str) -> str:
+        """Normalize base URL; force HTTPS (Cloudflare rejects plain HTTP)."""
+        v = v.rstrip("/")
+        if v.startswith("http://"):
+            v = "https://" + v[len("http://") :]
+        return v
 
     @field_validator("log_level")
     @classmethod
