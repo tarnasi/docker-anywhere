@@ -30,9 +30,9 @@ async def _run_docker(args: list[str]) -> str:
     return stdout.decode("utf-8", errors="replace")
 
 
-async def _inspect_project_paths(container_ids: list[str]) -> dict[str, str]:
-    """Map container ID -> compose project working dir from labels."""
-    paths: dict[str, str] = {}
+async def _inspect_containers_meta(container_ids: list[str]) -> dict[str, dict[str, Any]]:
+    """Map container ID -> project path and compose labels."""
+    meta: dict[str, dict[str, Any]] = {}
     for cid in container_ids:
         if not _CONTAINER_ID_RE.match(cid):
             continue
@@ -44,11 +44,16 @@ async def _inspect_project_paths(container_ids: list[str]) -> dict[str, str]:
                 or labels.get("com.docker.compose.project.config_files")
                 or ""
             )
-            if path:
-                paths[cid] = path
+            meta[cid] = {
+                "project_path": path or None,
+                "labels": {
+                    "compose_project": labels.get("com.docker.compose.project") or "",
+                    "compose_service": labels.get("com.docker.compose.service") or "",
+                },
+            }
         except Exception:
             logger.debug("could not inspect container %s", cid, exc_info=True)
-    return paths
+    return meta
 
 
 async def collect_inventory() -> dict[str, list[dict[str, Any]]]:
@@ -89,9 +94,12 @@ async def collect_inventory() -> dict[str, list[dict[str, Any]]]:
             }
         )
 
-    paths = await _inspect_project_paths(container_ids)
+    meta = await _inspect_containers_meta(container_ids)
     for c in containers:
-        c["project_path"] = paths.get(c["container_id"])
+        info = meta.get(c["container_id"], {})
+        c["project_path"] = info.get("project_path")
+        if info.get("labels"):
+            c["labels"] = info["labels"]
 
     images_raw = await _run_docker(
         [

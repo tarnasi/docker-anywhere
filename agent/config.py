@@ -6,6 +6,7 @@ All secrets must be provided via environment — never hard-code credentials.
 """
 
 from pathlib import Path
+from typing import Any
 
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -57,14 +58,14 @@ class Settings(BaseSettings):
         description="HTTP timeout for outbound requests to the control server.",
     )
 
-    # ── Docker paths ──────────────────────────────────────────────────────────
-    docker_compose_file: Path = Field(
-        default=Path("/opt/app/docker-compose.yml"),
-        description="Absolute path to docker-compose.yml used for compose commands.",
+    # ── Docker paths (optional — compose projects are auto-detected via docker) ─
+    docker_compose_file: Path | None = Field(
+        default=None,
+        description="Optional fallback compose file when auto-detection finds nothing.",
     )
-    docker_work_dir: Path = Field(
-        default=Path("/opt/app"),
-        description="Working directory for docker compose subprocess calls.",
+    docker_work_dir: Path | None = Field(
+        default=None,
+        description="Optional fallback working directory for compose commands.",
     )
 
     # ── Script execution ──────────────────────────────────────────────────────

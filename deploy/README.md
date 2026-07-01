@@ -54,23 +54,25 @@ AGENT_ID=prod-server-01
 API_KEY=<same as AGENT_API_KEY on control server>
 HMAC_SECRET=<same as AGENT_HMAC_SECRET>
 CONTROL_SERVER_URL=https://docker.devdiaries.work
-DOCKER_COMPOSE_FILE=/opt/app/docker-compose.yml
-DOCKER_WORK_DIR=/opt/app
-REBOOT_CONFIRMATION_TOKEN=<random>
+REBOOT_CONFIRMATION_TOKEN=<random-16-chars>
 LOG_FILE=/var/log/secure-agent/agent.log
 ```
 
-### 4. Add Docker project paths to systemd (required)
+`DOCKER_COMPOSE_FILE` and `DOCKER_WORK_DIR` are **optional** — compose projects are auto-detected.
 
-Edit the service and add your compose project dirs to `ReadWritePaths`:
+### 4. systemd ReadWritePaths (optional)
+
+Compose paths are **auto-detected** — you only need the agent install dir and logs:
 
 ```bash
 sudo nano /etc/systemd/system/secure-agent.service
 ```
 
 ```ini
-ReadWritePaths=/opt/docker-anywhere /var/log/secure-agent /opt/app
+ReadWritePaths=/home/app/.docker/anywhere /var/log/secure-agent
 ```
+
+Add extra paths only if you use `run_script` or set `DOCKER_COMPOSE_FILE` manually in `.env`.
 
 ```bash
 sudo systemctl daemon-reload

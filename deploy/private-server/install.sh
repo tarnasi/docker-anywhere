@@ -62,14 +62,24 @@ mkdir -p /var/log/secure-agent
 chown "${AGENT_USER}:${AGENT_GROUP}" /var/log/secure-agent
 chmod 750 /var/log/secure-agent
 
-echo "==> Syncing project to ${INSTALL_DIR}"
+echo "==> Preparing ${INSTALL_DIR}"
 mkdir -p "${INSTALL_DIR}"
+
+# Remove stale root-owned .venv / uv cache from previous partial installs
+if [[ -d "${INSTALL_DIR}/.venv" || -d "${INSTALL_DIR}/.cache" ]]; then
+  echo "==> Removing old .venv / .cache"
+  chown -R root:root "${INSTALL_DIR}/.venv" "${INSTALL_DIR}/.cache" 2>/dev/null || true
+  rm -rf "${INSTALL_DIR}/.venv" "${INSTALL_DIR}/.cache"
+fi
+
+echo "==> Syncing project to ${INSTALL_DIR}"
 rsync -a --delete \
   --exclude '.git' --exclude '__pycache__' --exclude 'control_server/data' \
-  --exclude 'logs' --exclude '.env' \
+  --exclude 'logs' --exclude '.env' --exclude '.venv' --exclude '.cache' \
   "${PROJECT_ROOT}/" "${INSTALL_DIR}/"
 
 chown -R "${AGENT_USER}:${AGENT_GROUP}" "${INSTALL_DIR}"
+chmod 755 "${INSTALL_DIR}"
 
 echo "==> Installing Python dependencies"
 if ! ensure_uv; then
@@ -77,7 +87,11 @@ if ! ensure_uv; then
   exit 1
 fi
 
-sudo -u "${AGENT_USER}" bash -c "cd ${INSTALL_DIR} && /usr/local/bin/uv sync"
+# HOME must be writable by dockeragent (uv cache + .venv)
+sudo -u "${AGENT_USER}" env HOME="${INSTALL_DIR}" bash -c \
+  "cd ${INSTALL_DIR} && /usr/local/bin/uv sync"
+
+chown -R "${AGENT_USER}:${AGENT_GROUP}" "${INSTALL_DIR}"
 
 if [[ ! -f "${INSTALL_DIR}/agent/.env" ]]; then
   cp "${INSTALL_DIR}/agent/.env.example" "${INSTALL_DIR}/agent/.env"
