@@ -82,6 +82,31 @@ async function createOrder(body) {
   return api("/api/ui/orders", { method: "POST", body: JSON.stringify(body) });
 }
 
+function escapeHtml(value) {
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;");
+}
+
+function composeButtonsHtml(projectPath, compact = false) {
+  if (!projectPath) return "—";
+  const path = escapeHtml(projectPath);
+  const btns = [
+    ["compose_project_up", "Up", "btn-primary"],
+    ["compose_project_down_rmi", "Down", "btn-danger"],
+    ["compose_project_up_force", "Recreate", "btn-primary"],
+    ["compose_project_build_nocache", "Build", "btn-primary"],
+  ];
+  const labels = compact
+    ? [["compose_project_up", "Up", "btn-primary"]]
+    : btns;
+  return `<div class="action-group">${labels.map(([action, label, cls]) =>
+    `<button type="button" class="btn ${cls} btn-sm compose-btn" data-compose-action="${action}" data-project-path="${path}">${label}</button>`
+  ).join("")}</div>`;
+}
+
 function uniqueProjectPaths(containers) {
   const paths = new Set();
   for (const c of containers) {
@@ -152,28 +177,29 @@ async function refreshDashboard() {
 async function refreshContainers() {
   const rows = await api("/api/ui/containers");
   const filtered = rows.filter(r => r.agent_id === state.agentId || !state.agentId);
+  const paths = uniqueProjectPaths(filtered);
+  const projectsEl = $("#projects-actions");
+  if (paths.length) {
+    projectsEl.innerHTML = paths.map(p => `
+      <div style="margin-bottom:1rem">
+        <div class="mono" style="margin-bottom:.35rem">${escapeHtml(p)}</div>
+        ${composeButtonsHtml(p)}
+      </div>
+    `).join("");
+  } else {
+    projectsEl.innerHTML = `<p class="text-muted">No compose project paths synced yet.</p>`;
+  }
+
   const tbody = $("#containers-body");
   tbody.innerHTML = filtered.map(c => `
     <tr>
-      <td>${c.name || "—"}</td>
-      <td class="mono">${c.image || "—"}</td>
+      <td>${escapeHtml(c.name || "—")}</td>
+      <td class="mono">${escapeHtml(c.image || "—")}</td>
       <td>${statusBadge(c.status)}</td>
-      <td class="mono">${c.project_path || "—"}</td>
-      <td>
-        ${c.project_path
-          ? `<button class="btn btn-primary btn-sm" data-compose-up="${c.project_path}">Up</button>`
-          : "—"}
-      </td>
+      <td class="mono">${escapeHtml(c.project_path || "—")}</td>
+      <td class="actions-cell">${composeButtonsHtml(c.project_path, true)}</td>
     </tr>
   `).join("");
-  tbody.querySelectorAll("[data-compose-up]").forEach(btn => {
-    btn.addEventListener("click", async () => {
-      try {
-        const ok = await queueComposeAction("compose_project_up", btn.dataset.composeUp);
-        if (ok) alert("Compose up order queued.");
-      } catch (e) { alert(e.message); }
-    });
-  });
   $("#containers-empty").classList.toggle("hidden", filtered.length > 0);
 }
 
@@ -359,7 +385,7 @@ function bindEvents() {
           $("#project-select").value,
         );
         if (ok) {
-          msg.textContent = "Order queued. Agent will run on next poll.";
+          msg.textContent = "Order queued. Agent will execute on next poll.";
           msg.className = "alert alert-info";
           msg.classList.remove("hidden");
           refreshDashboard();
@@ -370,6 +396,17 @@ function bindEvents() {
         msg.classList.remove("hidden");
       }
     });
+  });
+
+  document.addEventListener("click", async (e) => {
+    const btn = e.target.closest(".compose-btn");
+    if (!btn) return;
+    try {
+      const ok = await queueComposeAction(btn.dataset.composeAction, btn.dataset.projectPath);
+      if (ok) alert("Order queued. Agent will run on next poll.");
+    } catch (err) {
+      alert(err.message);
+    }
   });
 
   $("#quick-run-btn").addEventListener("click", async () => {

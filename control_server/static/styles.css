@@ -256,3 +256,14 @@ label { display: block; font-size: .78rem; color: var(--muted); margin-bottom: .
 .alert-info { background: rgba(59,130,246,.12); border: 1px solid rgba(59,130,246,.3); color: #93c5fd; }
 
 .mono { font-family: ui-monospace, monospace; font-size: .78rem; }
+
+td.actions-cell {
+  min-width: 220px;
+  white-space: normal;
+}
+
+.action-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .35rem;
+}
