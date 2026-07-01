@@ -1,9 +1,8 @@
 """Pydantic models for the control server API."""
 
 from datetime import datetime
-from enum import StrEnum
 from typing import Any
-from uuid import UUID, uuid4
+from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -11,8 +10,6 @@ from agent.models import ActionType, CommandPayload, CommandStatus, ExecutionRes
 
 
 class PushCommandRequest(BaseModel):
-    """Request body for operators pushing a command to an agent queue."""
-
     agent_id: str = Field(..., min_length=1, max_length=128)
     action: ActionType
     service: str | None = None
@@ -26,40 +23,25 @@ class PushCommandRequest(BaseModel):
         return v
 
 
-class QueuedCommand(BaseModel):
-    """Internal representation of a command waiting in the agent queue."""
-
-    command_id: UUID = Field(default_factory=uuid4)
-    agent_id: str
-    action: ActionType
-    service: str | None = None
-    params: dict[str, Any] = Field(default_factory=dict)
-    status: CommandStatus = CommandStatus.PENDING
-    created_at: datetime = Field(default_factory=lambda: datetime.now())
-    result: ExecutionResult | None = None
-
-
 class PushCommandResponse(BaseModel):
-    command_id: UUID
+    command_id: UUID | str
     agent_id: str
     status: CommandStatus
     message: str = "command queued"
 
 
 class PollResponse(BaseModel):
-    """Agent poll response — command field matches agent-side CommandPayload."""
-
     command: CommandPayload | None = None
 
 
 class HistoryEntry(BaseModel):
-    command_id: UUID
+    command_id: UUID | str
     agent_id: str
     action: ActionType
     service: str | None
     status: CommandStatus
-    created_at: datetime
-    finished_at: datetime | None = None
+    created_at: datetime | str
+    finished_at: datetime | str | None = None
     returncode: int | None = None
     error_message: str | None = None
 
@@ -67,3 +49,62 @@ class HistoryEntry(BaseModel):
 class HistoryResponse(BaseModel):
     total: int
     entries: list[HistoryEntry]
+
+
+class ContainerRecord(BaseModel):
+    container_id: str
+    name: str | None = None
+    image: str | None = None
+    status: str | None = None
+    state: str | None = None
+    ports: str | None = None
+    project_path: str | None = None
+    labels: dict[str, Any] = Field(default_factory=dict)
+
+
+class ImageRecord(BaseModel):
+    image_id: str
+    repository: str | None = None
+    tag: str | None = None
+    size_bytes: int | None = None
+    created_at: str | None = None
+
+
+class NetworkRecord(BaseModel):
+    network_id: str
+    name: str | None = None
+    driver: str | None = None
+    scope: str | None = None
+
+
+class InventorySyncRequest(BaseModel):
+    agent_id: str
+    containers: list[ContainerRecord] = Field(default_factory=list)
+    images: list[ImageRecord] = Field(default_factory=list)
+    networks: list[NetworkRecord] = Field(default_factory=list)
+
+
+class CreateTemplateRequest(BaseModel):
+    name: str = Field(..., min_length=1, max_length=128)
+    action: ActionType
+    service: str | None = None
+    params: dict[str, Any] = Field(default_factory=dict)
+    description: str = ""
+    category: str = "docker"
+
+
+class UpdateTemplateRequest(BaseModel):
+    name: str | None = None
+    action: ActionType | None = None
+    service: str | None = None
+    params: dict[str, Any] | None = None
+    description: str | None = None
+    category: str | None = None
+
+
+class CreateOrderRequest(BaseModel):
+    agent_id: str
+    template_id: int | None = None
+    action: ActionType | None = None
+    service: str | None = None
+    params: dict[str, Any] = Field(default_factory=dict)

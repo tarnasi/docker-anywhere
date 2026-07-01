@@ -15,7 +15,8 @@ import httpx
 
 from agent.config import settings
 from agent.executor import execute_command
-from agent.models import CommandPayload, ExecutionResult, PollResponse
+from agent.inventory import collect_inventory
+from agent.models import ActionType, CommandPayload, ExecutionResult, PollResponse
 from agent.security import audit_event, signed_request
 
 logger = logging.getLogger("agent.poller")
@@ -33,9 +34,9 @@ class AgentPoller:
         self._running = False
         self._client: httpx.AsyncClient | None = None
 
-        # Health/metrics state
         self.last_poll_at: datetime | None = None
         self.last_successful_poll_at: datetime | None = None
+        self.last_inventory_sync_at: datetime | None = None
         self.commands_executed: int = 0
         self.consecutive_errors: int = 0
 
@@ -44,14 +45,13 @@ class AgentPoller:
         return self._running and self._task is not None and not self._task.done()
 
     async def start(self) -> None:
-        """Start the background polling loop."""
         if self.is_running:
             return
 
         self._client = httpx.AsyncClient(
             base_url=settings.control_server_url,
             timeout=settings.request_timeout_seconds,
-            follow_redirects=False,  # Prevent redirect-based SSRF tricks
+            follow_redirects=False,
         )
         self._running = True
         self._task = asyncio.create_task(self._poll_loop(), name="agent-poller")
@@ -65,7 +65,6 @@ class AgentPoller:
         audit_event("poller_started")
 
     async def stop(self) -> None:
-        """Gracefully stop the polling loop and close the HTTP client."""
         self._running = False
         if self._task:
             self._task.cancel()
@@ -83,7 +82,6 @@ class AgentPoller:
         logger.info("poller stopped")
 
     async def _poll_loop(self) -> None:
-        """Main loop: poll → execute → report → sleep."""
         while self._running:
             try:
                 await self._poll_once()
@@ -96,12 +94,8 @@ class AgentPoller:
                     "poll cycle failed",
                     extra={"consecutive_errors": self.consecutive_errors},
                 )
-                audit_event(
-                    "poll_error",
-                    consecutive_errors=self.consecutive_errors,
-                )
+                audit_event("poll_error", consecutive_errors=self.consecutive_errors)
 
-            # Exponential backoff on repeated failures (capped at 5 minutes)
             if self.consecutive_errors > 0:
                 backoff = min(
                     settings.poll_interval_seconds * (2 ** self.consecutive_errors),
@@ -112,7 +106,6 @@ class AgentPoller:
                 await asyncio.sleep(settings.poll_interval_seconds)
 
     async def _poll_once(self) -> None:
-        """Single poll cycle: fetch pending command, execute, post result."""
         assert self._client is not None
 
         self.last_poll_at = datetime.now(UTC)
@@ -126,6 +119,7 @@ class AgentPoller:
 
         if poll_data.command is None:
             logger.debug("no pending commands")
+            await self._sync_inventory()
             return
 
         command = poll_data.command
@@ -138,10 +132,38 @@ class AgentPoller:
         result = await execute_command(command)
         self.commands_executed += 1
 
+        if command.action == ActionType.INVENTORY_SYNC:
+            await self._sync_inventory()
+
         await self._post_result(result)
+        await self._sync_inventory()
+
+    async def _sync_inventory(self) -> None:
+        assert self._client is not None
+        try:
+            data = await collect_inventory()
+            body = {
+                "agent_id": settings.agent_id,
+                **data,
+            }
+            response = await signed_request(
+                self._client,
+                "POST",
+                "/api/v1/inventory",
+                json_body=body,
+            )
+            response.raise_for_status()
+            self.last_inventory_sync_at = datetime.now(UTC)
+            audit_event(
+                "inventory_synced",
+                containers=len(data["containers"]),
+                images=len(data["images"]),
+                networks=len(data["networks"]),
+            )
+        except Exception:
+            logger.exception("inventory sync failed")
 
     async def _post_result(self, result: ExecutionResult) -> None:
-        """POST execution result back to the control server."""
         assert self._client is not None
 
         body = result.model_dump(mode="json")
@@ -159,5 +181,4 @@ class AgentPoller:
         )
 
 
-# Module-level singleton consumed by main.py lifespan and /health.
 poller = AgentPoller()

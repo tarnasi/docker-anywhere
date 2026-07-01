@@ -37,6 +37,14 @@ class Settings(BaseSettings):
     port: int = 8000
     log_level: str = "INFO"
 
+    # SQLite database
+    database_path: Path = Field(
+        default=Path(__file__).resolve().parent / "data" / "docker-anywhere.db"
+    )
+
+    # Simple bearer token for the web UI API (read + create orders)
+    ui_secret: str = Field(..., min_length=16)
+
     @field_validator("log_level")
     @classmethod
     def uppercase_log_level(cls, v: str) -> str:

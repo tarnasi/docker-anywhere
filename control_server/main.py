@@ -1,49 +1,37 @@
 """
-Minimal Control Server for the Secure Polling Agent.
-
-Provides endpoints for operators to push commands and for agents to poll,
-execute, and report results. Uses in-memory storage — suitable for demos;
-replace with PostgreSQL/Redis for production persistence.
+Control server API — SQLite-backed command queue, inventory, and web UI.
 """
 
 from __future__ import annotations
 
 import logging
-from collections import defaultdict, deque
 from contextlib import asynccontextmanager
-from datetime import datetime
-from typing import Any
+from pathlib import Path
 from uuid import UUID
 
 from fastapi import Depends, FastAPI, HTTPException, Request, status
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 
-from agent.models import CommandPayload, CommandStatus, ExecutionResult
+from agent.models import ActionType, CommandPayload, CommandStatus, ExecutionResult
 from control_server.config import settings
+from control_server.database import db
 from control_server.models import (
+    CreateOrderRequest,
+    CreateTemplateRequest,
     HistoryEntry,
     HistoryResponse,
+    InventorySyncRequest,
     PollResponse,
     PushCommandRequest,
     PushCommandResponse,
-    QueuedCommand,
+    UpdateTemplateRequest,
 )
 from control_server.security import verify_signed_request
 
 logger = logging.getLogger("control_server")
 
-
-# ── In-memory stores ────────────────────────────────────────────────────────
-
-# Per-agent FIFO command queues
-_queues: dict[str, deque[QueuedCommand]] = defaultdict(deque)
-
-# Full history for auditing / UI
-_history: list[QueuedCommand] = []
-
-
-def _trim_history() -> None:
-    while len(_history) > settings.max_history_entries:
-        _history.pop(0)
+STATIC_DIR = Path(__file__).resolve().parent / "static"
 
 
 # ── Auth dependencies ───────────────────────────────────────────────────────
@@ -64,6 +52,15 @@ async def verify_operator_request(request: Request) -> bytes:
     )
 
 
+async def verify_ui_request(request: Request) -> None:
+    auth = request.headers.get("Authorization", "")
+    if not auth.startswith("Bearer "):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="missing bearer token")
+    token = auth[7:]
+    if token != settings.ui_secret:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="invalid UI token")
+
+
 # ── App ───────────────────────────────────────────────────────────────────────
 
 @asynccontextmanager
@@ -72,17 +69,28 @@ async def lifespan(app: FastAPI):
         level=getattr(logging, settings.log_level, logging.INFO),
         format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s",
     )
-    logger.info("control server starting")
+    logger.info("control server starting db=%s", settings.database_path)
     yield
     logger.info("control server stopped")
 
 
 app = FastAPI(
-    title="Secure Agent Control Server",
-    description="Push commands to agents and view execution history.",
-    version="1.0.0",
+    title="Docker Anywhere Control Server",
+    description="Outbound Docker management for devdiaries.work",
+    version="2.0.0",
     lifespan=lifespan,
 )
+
+if STATIC_DIR.is_dir():
+    app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+
+
+@app.get("/", include_in_schema=False)
+async def ui_home() -> FileResponse:
+    index = STATIC_DIR / "index.html"
+    if not index.is_file():
+        raise HTTPException(status_code=404, detail="UI not found")
+    return FileResponse(index)
 
 
 @app.get("/health", tags=["monitoring"])
@@ -90,103 +98,33 @@ async def health() -> dict[str, str]:
     return {"status": "ok", "service": "control-server"}
 
 
-@app.post(
-    "/api/v1/commands",
-    response_model=PushCommandResponse,
-    tags=["operator"],
-)
-async def push_command(
-    raw: bytes = Depends(verify_operator_request),
-) -> PushCommandResponse:
-    """
-    Queue a command for a specific agent.
+# ── Agent endpoints ───────────────────────────────────────────────────────────
 
-    Requires operator API key + HMAC signature. The agent will pick up the
-    command on its next poll cycle.
-    """
-    try:
-        body = PushCommandRequest.model_validate_json(raw)
-    except Exception as exc:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=f"invalid command payload: {exc}",
-        ) from exc
-
-    cmd = QueuedCommand(
-        agent_id=body.agent_id,
-        action=body.action,
-        service=body.service,
-        params=body.params,
-    )
-    _queues[body.agent_id].append(cmd)
-    _history.append(cmd)
-    _trim_history()
-
-    logger.info(
-        "command queued",
-        extra={"command_id": str(cmd.command_id), "agent_id": body.agent_id},
-    )
-    return PushCommandResponse(
-        command_id=cmd.command_id,
-        agent_id=body.agent_id,
-        status=cmd.status,
-    )
-
-
-@app.get(
-    "/api/v1/poll",
-    response_model=PollResponse,
-    tags=["agent"],
-)
+@app.get("/api/v1/poll", response_model=PollResponse, tags=["agent"])
 async def poll_commands(
-    request: Request,
     agent_id: str,
     _raw: bytes = Depends(verify_agent_request),
 ) -> PollResponse:
-    """
-    Agent polls for the next pending command.
-
-    Returns at most one command per poll. Commands are dequeued (FIFO).
-    """
-    queue = _queues.get(agent_id)
-    if not queue:
+    db.touch_agent_poll(agent_id)
+    order = db.poll_next_order(agent_id)
+    if not order:
         return PollResponse(command=None)
 
-    # Skip already-running commands (shouldn't happen, but defensive)
-    while queue:
-        cmd = queue[0]
-        if cmd.status == CommandStatus.PENDING:
-            cmd.status = CommandStatus.RUNNING
-            queue.popleft()
-
-            # Return as CommandPayload (subset the agent expects)
-            payload = CommandPayload(
-                command_id=cmd.command_id,
-                action=cmd.action,
-                service=cmd.service,
-                params=cmd.params,
-                created_at=cmd.created_at,
-            )
-            logger.info(
-                "command dispatched",
-                extra={"command_id": str(cmd.command_id), "agent_id": agent_id},
-            )
-            return PollResponse(command=payload)
-
-        queue.popleft()
-
-    return PollResponse(command=None)
+    payload = CommandPayload(
+        command_id=UUID(order["command_id"]),
+        action=ActionType(order["action"]),
+        service=order.get("service"),
+        params=order.get("params", {}),
+        created_at=order.get("created_at"),
+    )
+    logger.info("command dispatched command_id=%s agent=%s", order["command_id"], agent_id)
+    return PollResponse(command=payload)
 
 
 @app.post("/api/v1/results", tags=["agent"])
 async def post_result(
     raw: bytes = Depends(verify_agent_request),
 ) -> dict[str, str]:
-    """
-    Agent posts execution result after running a command.
-
-    Updates the in-memory history entry with stdout/stderr/returncode.
-    """
     try:
         result = ExecutionResult.model_validate_json(raw)
     except Exception as exc:
@@ -195,70 +133,213 @@ async def post_result(
             detail=f"invalid result payload: {exc}",
         ) from exc
 
-    updated = False
-    for entry in reversed(_history):
-        if entry.command_id == result.command_id:
-            entry.status = result.status
-            entry.result = result
-            updated = True
-            break
-
-    if not updated:
-        logger.warning("result for unknown command_id=%s", result.command_id)
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="command not found in history",
-        )
+    if not db.save_result(result):
+        raise HTTPException(status_code=404, detail="command not found")
 
     logger.info(
-        "result received",
-        extra={
-            "command_id": str(result.command_id),
-            "status": result.status.value,
-            "returncode": result.returncode,
-        },
+        "result received command_id=%s status=%s",
+        result.command_id,
+        result.status.value,
     )
     return {"status": "accepted"}
 
 
-@app.get(
-    "/api/v1/history",
-    response_model=HistoryResponse,
-    tags=["operator"],
-)
+@app.post("/api/v1/inventory", tags=["agent"])
+async def sync_inventory(
+    raw: bytes = Depends(verify_agent_request),
+) -> dict[str, str]:
+    try:
+        body = InventorySyncRequest.model_validate_json(raw)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"invalid inventory payload: {exc}",
+        ) from exc
+
+    db.replace_inventory(
+        body.agent_id,
+        [c.model_dump() for c in body.containers],
+        [i.model_dump() for i in body.images],
+        [n.model_dump() for n in body.networks],
+    )
+    logger.info(
+        "inventory synced agent=%s containers=%d images=%d networks=%d",
+        body.agent_id,
+        len(body.containers),
+        len(body.images),
+        len(body.networks),
+    )
+    return {"status": "accepted"}
+
+
+# ── Operator endpoints (HMAC — CLI / automation) ─────────────────────────────
+
+@app.post("/api/v1/commands", response_model=PushCommandResponse, tags=["operator"])
+async def push_command(
+    raw: bytes = Depends(verify_operator_request),
+) -> PushCommandResponse:
+    try:
+        body = PushCommandRequest.model_validate_json(raw)
+    except Exception as exc:
+        raise HTTPException(status_code=422, detail=f"invalid command payload: {exc}") from exc
+
+    try:
+        order = db.create_order(
+            agent_id=body.agent_id,
+            action=body.action.value,
+            service=body.service,
+            params=body.params,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    return PushCommandResponse(
+        command_id=order["command_id"],
+        agent_id=body.agent_id,
+        status=CommandStatus(order["status"]),
+    )
+
+
+@app.get("/api/v1/history", response_model=HistoryResponse, tags=["operator"])
 async def get_history(
-    request: Request,
     agent_id: str | None = None,
     limit: int = 50,
     _raw: bytes = Depends(verify_operator_request),
 ) -> HistoryResponse:
-    """
-    View command execution history.
-
-    Optionally filter by agent_id. Requires operator authentication.
-    """
-    limit = min(max(limit, 1), 500)
-    entries = _history
-
-    if agent_id:
-        entries = [e for e in entries if e.agent_id == agent_id]
-
-    entries = entries[-limit:]
-    entries.reverse()
-
-    history_entries = [
+    orders = db.list_orders(agent_id=agent_id, limit=limit)
+    entries = [
         HistoryEntry(
-            command_id=e.command_id,
-            agent_id=e.agent_id,
-            action=e.action,
-            service=e.service,
-            status=e.status,
-            created_at=e.created_at,
-            finished_at=e.result.finished_at if e.result else None,
-            returncode=e.result.returncode if e.result else None,
-            error_message=e.result.error_message if e.result else None,
+            command_id=o["command_id"],
+            agent_id=o["agent_id"],
+            action=ActionType(o["action"]),
+            service=o.get("service"),
+            status=CommandStatus(o["status"]),
+            created_at=o["created_at"],
+            finished_at=o.get("finished_at"),
+            returncode=o.get("returncode"),
+            error_message=o.get("error_message"),
         )
-        for e in entries
+        for o in orders
     ]
+    return HistoryResponse(total=len(entries), entries=entries)
 
-    return HistoryResponse(total=len(history_entries), entries=history_entries)
+
+# ── Web UI API (Bearer UI_SECRET) ─────────────────────────────────────────────
+
+@app.get("/api/ui/status", tags=["ui"])
+async def ui_status(_: None = Depends(verify_ui_request)) -> dict[str, Any]:
+    return {
+        "agents": db.list_agents(),
+        "api_log": db.get_api_log(),
+    }
+
+
+@app.get("/api/ui/containers", tags=["ui"])
+async def ui_containers(
+    agent_id: str | None = None,
+    _: None = Depends(verify_ui_request),
+) -> list[dict[str, Any]]:
+    return db.list_containers(agent_id)
+
+
+@app.get("/api/ui/images", tags=["ui"])
+async def ui_images(
+    agent_id: str | None = None,
+    _: None = Depends(verify_ui_request),
+) -> list[dict[str, Any]]:
+    return db.list_images(agent_id)
+
+
+@app.get("/api/ui/networks", tags=["ui"])
+async def ui_networks(
+    agent_id: str | None = None,
+    _: None = Depends(verify_ui_request),
+) -> list[dict[str, Any]]:
+    return db.list_networks(agent_id)
+
+
+@app.get("/api/ui/commands", tags=["ui"])
+async def ui_commands(_: None = Depends(verify_ui_request)) -> list[dict[str, Any]]:
+    return db.list_templates()
+
+
+@app.post("/api/ui/commands", tags=["ui"])
+async def ui_create_command(
+    body: CreateTemplateRequest,
+    _: None = Depends(verify_ui_request),
+) -> dict[str, Any]:
+    return db.create_template(
+        name=body.name,
+        action=body.action.value,
+        service=body.service,
+        params=body.params,
+        description=body.description,
+        category=body.category,
+    )
+
+
+@app.put("/api/ui/commands/{template_id}", tags=["ui"])
+async def ui_update_command(
+    template_id: int,
+    body: UpdateTemplateRequest,
+    _: None = Depends(verify_ui_request),
+) -> dict[str, Any]:
+    updated = db.update_template(
+        template_id,
+        name=body.name,
+        action=body.action.value if body.action else None,
+        service=body.service,
+        params=body.params,
+        description=body.description,
+        category=body.category,
+    )
+    if not updated:
+        raise HTTPException(status_code=404, detail="template not found")
+    return updated
+
+
+@app.delete("/api/ui/commands/{template_id}", tags=["ui"])
+async def ui_delete_command(
+    template_id: int,
+    _: None = Depends(verify_ui_request),
+) -> dict[str, str]:
+    if not db.delete_template(template_id):
+        raise HTTPException(status_code=404, detail="template not found")
+    return {"status": "deleted"}
+
+
+@app.get("/api/ui/orders", tags=["ui"])
+async def ui_orders(
+    agent_id: str | None = None,
+    limit: int = 50,
+    _: None = Depends(verify_ui_request),
+) -> list[dict[str, Any]]:
+    return db.list_orders(agent_id=agent_id, limit=limit)
+
+
+@app.get("/api/ui/orders/active", tags=["ui"])
+async def ui_active_order(
+    agent_id: str,
+    _: None = Depends(verify_ui_request),
+) -> dict[str, Any] | None:
+    return db.get_active_order(agent_id)
+
+
+@app.post("/api/ui/orders", tags=["ui"])
+async def ui_create_order(
+    body: CreateOrderRequest,
+    _: None = Depends(verify_ui_request),
+) -> dict[str, Any]:
+    try:
+        if body.template_id is not None:
+            return db.create_order_from_template(body.agent_id, body.template_id)
+        if not body.action:
+            raise HTTPException(status_code=422, detail="action or template_id required")
+        return db.create_order(
+            agent_id=body.agent_id,
+            action=body.action.value,
+            service=body.service,
+            params=body.params,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc

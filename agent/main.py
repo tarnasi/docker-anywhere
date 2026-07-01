@@ -73,6 +73,7 @@ async def health(request: Request) -> HealthResponse:
         poller_running=poller.is_running,
         last_poll_at=poller.last_poll_at,
         last_successful_poll_at=poller.last_successful_poll_at,
+        last_inventory_sync_at=poller.last_inventory_sync_at,
         commands_executed=poller.commands_executed,
     )
 

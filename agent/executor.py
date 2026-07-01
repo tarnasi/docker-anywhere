@@ -23,6 +23,10 @@ logger = logging.getLogger("agent.executor")
 _SERVICE_RE = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9_-]*$")
 # Script names: basename only, no path components.
 _SCRIPT_RE = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9_.-]*$")
+# Image references: repo:tag or image id prefix.
+_IMAGE_RE = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9._/@: -]+$")
+# Network names
+_NETWORK_RE = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9_.-]*$")
 
 
 class CommandRejectedError(Exception):
@@ -87,6 +91,61 @@ def _build_command(cmd: CommandPayload) -> list[str]:
 
     if action == ActionType.DOCKER_START:
         return _compose_base() + ["start", service]
+
+    if action == ActionType.DOCKER_COMPOSE_UP:
+        return _compose_base() + ["up", "-d"]
+
+    if action == ActionType.DOCKER_COMPOSE_DOWN:
+        return _compose_base() + ["down"]
+
+    if action == ActionType.CONTAINERS_STOP_ALL:
+        return ["__stop_all_containers__"]
+
+    if action == ActionType.CONTAINERS_REMOVE_ALL:
+        return ["docker", "container", "prune", "-f"]
+
+    if action == ActionType.IMAGE_PULL:
+        image = cmd.params.get("image") or service
+        if not image or not isinstance(image, str):
+            raise CommandRejectedError("image_pull requires params.image or service")
+        if not _IMAGE_RE.match(image):
+            raise CommandRejectedError(f"invalid image reference: {image!r}")
+        return ["docker", "pull", image]
+
+    if action == ActionType.IMAGE_REMOVE:
+        image = cmd.params.get("image") or service
+        if not image or not isinstance(image, str):
+            raise CommandRejectedError("image_remove requires params.image or service")
+        if not _IMAGE_RE.match(image):
+            raise CommandRejectedError(f"invalid image reference: {image!r}")
+        force = cmd.params.get("force", False)
+        argv = ["docker", "rmi"]
+        if force:
+            argv.append("-f")
+        argv.append(image)
+        return argv
+
+    if action == ActionType.NETWORK_CREATE:
+        name = cmd.params.get("name") or service
+        if not name or not isinstance(name, str):
+            raise CommandRejectedError("network_create requires params.name or service")
+        if not _NETWORK_RE.match(name):
+            raise CommandRejectedError(f"invalid network name: {name!r}")
+        driver = cmd.params.get("driver", "bridge")
+        if driver not in ("bridge", "host", "overlay", "macvlan", "none"):
+            raise CommandRejectedError(f"unsupported network driver: {driver!r}")
+        return ["docker", "network", "create", "--driver", driver, name]
+
+    if action == ActionType.NETWORK_REMOVE:
+        name = cmd.params.get("name") or service
+        if not name or not isinstance(name, str):
+            raise CommandRejectedError("network_remove requires params.name or service")
+        if not _NETWORK_RE.match(name):
+            raise CommandRejectedError(f"invalid network name: {name!r}")
+        return ["docker", "network", "rm", name]
+
+    if action == ActionType.INVENTORY_SYNC:
+        return ["__inventory_sync__"]
 
     if action == ActionType.SERVER_REBOOT:
         token = cmd.params.get("confirmation_token")
@@ -196,7 +255,17 @@ async def execute_command(cmd: CommandPayload) -> ExecutionResult:
         )
 
     try:
-        stdout, stderr, returncode = await _run_subprocess(argv)
+        if argv == ["__stop_all_containers__"]:
+            ps_stdout, ps_stderr, ps_rc = await _run_subprocess(["docker", "ps", "-q"])
+            ids = [i for i in ps_stdout.strip().split() if i]
+            if not ids:
+                stdout, stderr, returncode = "no running containers", "", 0
+            else:
+                stdout, stderr, returncode = await _run_subprocess(["docker", "stop", *ids])
+        elif argv == ["__inventory_sync__"]:
+            stdout, stderr, returncode = "inventory sync scheduled", "", 0
+        else:
+            stdout, stderr, returncode = await _run_subprocess(argv)
         status = CommandStatus.SUCCESS if returncode == 0 else CommandStatus.FAILED
 
         audit_event(

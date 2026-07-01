@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0f1419" />
+  <title>Docker Anywhere</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+  <!-- Login -->
+  <div id="login-screen">
+    <div class="login-card">
+      <h1><span class="logo-dot"></span>Docker Anywhere</h1>
+      <p>Remote Docker control for your private server</p>
+      <label for="ui-token">UI Access Token</label>
+      <input id="ui-token" type="password" placeholder="Enter UI_SECRET" autocomplete="off" />
+      <label for="default-agent">Default Agent ID</label>
+      <input id="default-agent" type="text" placeholder="prod-server-01" value="prod-server-01" />
+      <button class="btn btn-primary" style="width:100%;margin-top:.5rem" id="login-btn">Connect</button>
+      <p id="login-error" class="alert alert-error hidden" style="margin-top:1rem;margin-bottom:0"></p>
+    </div>
+  </div>
+
+  <!-- App -->
+  <div id="app" class="hidden">
+    <header>
+      <h1 id="page-heading">Dashboard</h1>
+      <span id="agent-status" class="status-pill offline">Offline</span>
+    </header>
+
+    <main>
+      <!-- Dashboard -->
+      <section id="view-dashboard" class="view">
+        <div class="stats-grid">
+          <div class="stat-card"><div class="label">Containers</div><div class="value" id="stat-containers">—</div></div>
+          <div class="stat-card"><div class="label">Images</div><div class="value" id="stat-images">—</div></div>
+          <div class="stat-card"><div class="label">Networks</div><div class="value" id="stat-networks">—</div></div>
+          <div class="stat-card"><div class="label">Active Order</div><div class="value" id="stat-order">—</div></div>
+        </div>
+        <div class="card">
+          <h2>Server Status</h2>
+          <p style="font-size:.85rem;color:var(--muted)">Last agent poll: <span id="last-poll">—</span></p>
+          <p style="font-size:.85rem;color:var(--muted);margin-top:.35rem">Last inventory sync: <span id="last-sync">—</span></p>
+        </div>
+        <div class="card">
+          <h2>Quick Execute</h2>
+          <label>Command template</label>
+          <select id="quick-template"></select>
+          <button class="btn btn-primary" id="quick-run-btn" style="width:100%">Run Command</button>
+          <p id="quick-msg" class="alert alert-info hidden" style="margin-top:.75rem;margin-bottom:0"></p>
+        </div>
+      </section>
+
+      <!-- Containers -->
+      <section id="view-containers" class="view hidden">
+        <div class="page-title">Containers</div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Image</th>
+                <th>Status</th>
+                <th>Project Path</th>
+              </tr>
+            </thead>
+            <tbody id="containers-body"></tbody>
+          </table>
+        </div>
+        <div id="containers-empty" class="empty-state hidden">No containers synced yet</div>
+      </section>
+
+      <!-- Images -->
+      <section id="view-images" class="view hidden">
+        <div class="page-title">Images</div>
+        <div class="card">
+          <h2>Pull Image</h2>
+          <input id="pull-image-input" placeholder="nginx:latest" />
+          <button class="btn btn-primary" id="pull-image-btn">Pull</button>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Repository</th><th>Tag</th><th>Size</th><th>Actions</th></tr>
+            </thead>
+            <tbody id="images-body"></tbody>
+          </table>
+        </div>
+        <div id="images-empty" class="empty-state hidden">No images synced yet</div>
+      </section>
+
+      <!-- Networks -->
+      <section id="view-networks" class="view hidden">
+        <div class="page-title">Networks</div>
+        <div class="card">
+          <h2>Create Network</h2>
+          <input id="network-name-input" placeholder="my-network" />
+          <select id="network-driver-input">
+            <option value="bridge">bridge</option>
+            <option value="overlay">overlay</option>
+            <option value="host">host</option>
+          </select>
+          <button class="btn btn-primary" id="create-network-btn">Create</button>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Name</th><th>Driver</th><th>Scope</th><th>Actions</th></tr>
+            </thead>
+            <tbody id="networks-body"></tbody>
+          </table>
+        </div>
+        <div id="networks-empty" class="empty-state hidden">No networks synced yet</div>
+      </section>
+
+      <!-- Orders -->
+      <section id="view-orders" class="view hidden">
+        <div class="page-title">Execute Orders</div>
+        <div id="active-order-card" class="card hidden">
+          <h2>Active Order</h2>
+          <p id="active-order-text"></p>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Action</th><th>Status</th><th>Created</th><th>Result</th></tr>
+            </thead>
+            <tbody id="orders-body"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- Commands CRUD -->
+      <section id="view-commands" class="view hidden">
+        <div class="page-title">Command Templates</div>
+        <div class="card">
+          <h2>New Template</h2>
+          <input id="tpl-name" placeholder="Name" />
+          <select id="tpl-action"></select>
+          <input id="tpl-service" placeholder="Service (optional)" />
+          <input id="tpl-category" placeholder="Category" value="docker" />
+          <textarea id="tpl-desc" rows="2" placeholder="Description"></textarea>
+          <button class="btn btn-primary" id="tpl-create-btn">Save Template</button>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Name</th><th>Action</th><th>Category</th><th></th></tr>
+            </thead>
+            <tbody id="commands-body"></tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+
+    <nav class="bottom-nav">
+      <button data-view="dashboard" class="active" aria-label="Dashboard">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+        Home
+      </button>
+      <button data-view="containers" aria-label="Containers">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+        Containers
+      </button>
+      <button data-view="images" aria-label="Images">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+        Images
+      </button>
+      <button data-view="networks" aria-label="Networks">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="5" r="3"/><circle cx="5" cy="19" r="3"/><circle cx="19" cy="19" r="3"/><path d="M12 8v4M8.5 17.5l2.5-3M15 14.5l2.5 3"/></svg>
+        Networks
+      </button>
+      <button data-view="orders" aria-label="Orders">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+        Orders
+      </button>
+      <button data-view="commands" aria-label="Commands">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"/></svg>
+        Commands
+      </button>
+    </nav>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

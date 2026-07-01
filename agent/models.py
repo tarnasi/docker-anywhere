@@ -22,6 +22,15 @@ class ActionType(StrEnum):
     DOCKER_STATUS = "docker_status"
     DOCKER_STOP = "docker_stop"
     DOCKER_START = "docker_start"
+    DOCKER_COMPOSE_UP = "docker_compose_up"
+    DOCKER_COMPOSE_DOWN = "docker_compose_down"
+    CONTAINERS_STOP_ALL = "containers_stop_all"
+    CONTAINERS_REMOVE_ALL = "containers_remove_all"
+    IMAGE_PULL = "image_pull"
+    IMAGE_REMOVE = "image_remove"
+    NETWORK_CREATE = "network_create"
+    NETWORK_REMOVE = "network_remove"
+    INVENTORY_SYNC = "inventory_sync"
     SERVER_REBOOT = "server_reboot"
     RUN_SCRIPT = "run_script"
 
@@ -96,4 +105,5 @@ class HealthResponse(BaseModel):
     poller_running: bool
     last_poll_at: datetime | None = None
     last_successful_poll_at: datetime | None = None
+    last_inventory_sync_at: datetime | None = None
     commands_executed: int = 0
