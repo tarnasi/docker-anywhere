@@ -40,6 +40,9 @@ cd /opt/docker-anywhere
 sudo bash deploy/private-server/install.sh
 ```
 
+If `uv` is installed only for your user (e.g. `~/.local/bin/uv`), the script
+finds it automatically. Override with: `UV_BIN=/path/to/uv sudo bash ...`
+
 ### 3. Configure agent
 
 ```bash

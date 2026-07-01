@@ -8,6 +8,44 @@ AGENT_USER="${AGENT_USER:-dockeragent}"
 AGENT_GROUP="${AGENT_GROUP:-dockeragent}"
 PROJECT_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 
+find_uv() {
+  local candidates=()
+  [[ -n "${UV_BIN:-}" ]] && candidates+=("${UV_BIN}")
+  command -v uv &>/dev/null && candidates+=("$(command -v uv)")
+  if [[ -n "${SUDO_USER:-}" && "${SUDO_USER}" != "root" ]]; then
+    candidates+=("/home/${SUDO_USER}/.local/bin/uv")
+  fi
+  candidates+=(
+    "/root/.local/bin/uv"
+    "/usr/local/bin/uv"
+    "/usr/bin/uv"
+  )
+  local c
+  for c in "${candidates[@]}"; do
+    [[ -n "$c" && -x "$c" ]] && { echo "$c"; return 0; }
+  done
+  return 1
+}
+
+install_uv_system() {
+  echo "==> Installing uv to /usr/local/bin"
+  curl -LsSf https://astral.sh/uv/install.sh | env UV_INSTALL_DIR=/usr/local/bin UV_NO_MODIFY_PATH=1 sh
+}
+
+ensure_uv() {
+  local uv_path
+  if uv_path="$(find_uv)"; then
+    echo "==> Found uv: ${uv_path}"
+    if [[ "${uv_path}" != "/usr/local/bin/uv" && ! -x /usr/local/bin/uv ]]; then
+      install -m 755 "${uv_path}" /usr/local/bin/uv
+      echo "==> Linked uv to /usr/local/bin/uv"
+    fi
+    return 0
+  fi
+  install_uv_system
+  command -v /usr/local/bin/uv &>/dev/null
+}
+
 if [[ $EUID -ne 0 ]]; then
   echo "Run as root: sudo bash $0" >&2
   exit 1
@@ -34,12 +72,12 @@ rsync -a --delete \
 chown -R "${AGENT_USER}:${AGENT_GROUP}" "${INSTALL_DIR}"
 
 echo "==> Installing Python dependencies"
-if command -v uv &>/dev/null; then
-  sudo -u "${AGENT_USER}" bash -c "cd ${INSTALL_DIR} && uv sync"
-else
-  echo "Install uv first: curl -LsSf https://astral.sh/uv/install.sh | sh" >&2
+if ! ensure_uv; then
+  echo "Failed to locate or install uv" >&2
   exit 1
 fi
+
+sudo -u "${AGENT_USER}" bash -c "cd ${INSTALL_DIR} && /usr/local/bin/uv sync"
 
 if [[ ! -f "${INSTALL_DIR}/agent/.env" ]]; then
   cp "${INSTALL_DIR}/agent/.env.example" "${INSTALL_DIR}/agent/.env"
