@@ -163,11 +163,17 @@ async def signed_request(
     if json_body is not None:
         body_bytes = json.dumps(json_body, separators=(",", ":"), default=str).encode("utf-8")
 
-    # Extract path + query from full URL for signature (must match server verification)
+    # Extract path + query for signature (must match server verification).
+    # httpx.URL.query may be bytes; decode it before building the canonical path.
     parsed = httpx.URL(url)
     sign_path = parsed.path
     if parsed.query:
-        sign_path = f"{sign_path}?{parsed.query}"
+        query = (
+            parsed.query.decode("ascii")
+            if isinstance(parsed.query, bytes)
+            else str(parsed.query)
+        )
+        sign_path = f"{sign_path}?{query}"
 
     headers = signed_headers(method, sign_path, body_bytes)
 
