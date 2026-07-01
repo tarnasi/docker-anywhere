@@ -19,9 +19,6 @@ const state = {
   agentId: localStorage.getItem("agent_id") || "prod-server-01",
   view: "dashboard",
   refreshTimer: null,
-  containers: [],
-  containerFilter: "all",
-  containerSearch: "",
 };
 
 function $(sel) { return document.querySelector(sel); }
@@ -80,46 +77,6 @@ function shortStatus(status) {
   return status.length > 28 ? `${status.slice(0, 25)}…` : status;
 }
 
-function containerStatusBadge(status) {
-  const s = (status || "").toLowerCase();
-  let cls = "exited";
-  if (s.includes("restarting")) cls = "restarting";
-  else if (s.includes("paused")) cls = "paused";
-  else if (s.includes("up") || s.includes("running")) cls = "running";
-  const label = shortStatus(status);
-  return `<span class="container-badge container-badge--${cls}">${escapeHtml(label)}</span>`;
-}
-
-function isExitedStatus(status) {
-  const s = (status || "").toLowerCase();
-  return s.includes("exited") || s.includes("dead") || s.includes("created");
-}
-
-function isRunningStatus(status) {
-  const s = (status || "").toLowerCase();
-  return s.includes("up") || s.includes("running") || s.includes("restarting");
-}
-
-/* Lucide icon SVGs (wrench, arrow-up, trash-2) — inlined for reliable rendering */
-const LUCIDE = {
-  wrench: `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>`,
-  arrowUp: `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></svg>`,
-  trash2: `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>`,
-};
-
-function composeIconActions(projectPath) {
-  if (!projectPath) return `<span class="containers-muted">—</span>`;
-  const path = escapeHtml(projectPath);
-  const items = [
-    ["compose_project_build_nocache", "Build", "container-icon-btn--build", LUCIDE.wrench],
-    ["compose_project_up", "Restart", "container-icon-btn--restart", LUCIDE.arrowUp],
-    ["compose_project_down_rmi", "Delete", "container-icon-btn--delete", LUCIDE.trash2],
-  ];
-  return `<div class="container-icon-actions">${items.map(([action, label, cls, icon]) =>
-    `<button type="button" class="container-icon-btn ${cls} compose-btn" data-compose-action="${action}" data-project-path="${path}" title="${label}" aria-label="${label}">${icon}</button>`
-  ).join("")}</div>`;
-}
-
 function showView(name) {
   state.view = name;
   $$(".view").forEach(v => v.classList.add("hidden"));
@@ -145,10 +102,6 @@ function escapeHtml(value) {
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;");
-}
-
-function composeButtonsHtml(projectPath) {
-  return composeIconActions(projectPath);
 }
 
 function uniqueProjectPaths(containers) {
@@ -218,51 +171,8 @@ async function refreshDashboard() {
   populateProjectSelect(paths, paths.includes(current) ? current : paths[0]);
 }
 
-function filterContainers(rows) {
-  const q = state.containerSearch.trim().toLowerCase();
-  return rows.filter(c => {
-    if (state.containerFilter === "running" && !isRunningStatus(c.status)) return false;
-    if (state.containerFilter === "exited" && !isExitedStatus(c.status)) return false;
-    if (!q) return true;
-    const hay = [c.name, c.image, c.status, c.project_path].join(" ").toLowerCase();
-    return hay.includes(q);
-  });
-}
-
-function renderContainersView(rows) {
-  const running = rows.filter(c => isRunningStatus(c.status)).length;
-  const exited = rows.length - running;
-  $("#containers-stats").innerHTML = `
-    <span><strong>${rows.length}</strong> total</span>
-    <span><strong>${running}</strong> running</span>
-    <span><strong>${exited}</strong> exited</span>
-  `;
-
-  const filtered = filterContainers(rows);
-  const wrap = $(".containers-table-wrap");
-  const tbody = $("#containers-body");
-
-  $("#containers-empty").classList.toggle("hidden", rows.length > 0);
-  $("#containers-filtered-empty").classList.toggle("hidden", rows.length === 0 || filtered.length > 0);
-  wrap.classList.toggle("hidden", rows.length === 0 || filtered.length === 0);
-
-  tbody.innerHTML = filtered.map(c => `
-    <tr>
-      <td class="col-sticky-left">
-        <span class="container-name" title="${escapeHtml(c.name || "")}">${escapeHtml(c.name || "—")}</span>
-      </td>
-      <td class="col-image mono">${escapeHtml(c.image || "—")}</td>
-      <td class="col-status">${containerStatusBadge(c.status)}</td>
-      <td class="col-project mono">${escapeHtml(c.project_path || "—")}</td>
-      <td class="col-sticky-right col-actions">${composeIconActions(c.project_path)}</td>
-    </tr>
-  `).join("");
-}
-
 async function refreshContainers() {
-  const rows = await api("/api/ui/containers");
-  state.containers = rows.filter(r => r.agent_id === state.agentId || !state.agentId);
-  renderContainersView(state.containers);
+  if (window.ContainersPage) await ContainersPage.refresh();
 }
 
 async function refreshImages() {
@@ -462,29 +372,13 @@ function bindEvents() {
 
   document.addEventListener("click", async (e) => {
     const btn = e.target.closest(".compose-btn");
-    if (!btn) return;
+    if (!btn || btn.closest("#view-containers")) return;
     try {
       const ok = await queueComposeAction(btn.dataset.composeAction, btn.dataset.projectPath);
       if (ok) alert("Order queued. Agent will run on next poll.");
     } catch (err) {
       alert(err.message);
     }
-  });
-
-  const searchInput = $("#containers-search");
-  if (searchInput) {
-    searchInput.addEventListener("input", () => {
-      state.containerSearch = searchInput.value;
-      renderContainersView(state.containers);
-    });
-  }
-
-  $$("[data-container-filter]").forEach(btn => {
-    btn.addEventListener("click", () => {
-      state.containerFilter = btn.dataset.containerFilter;
-      $$("[data-container-filter]").forEach(b => b.classList.toggle("active", b === btn));
-      renderContainersView(state.containers);
-    });
   });
 
   $("#quick-run-btn").addEventListener("click", async () => {
@@ -547,6 +441,7 @@ function bindEvents() {
 
 document.addEventListener("DOMContentLoaded", () => {
   bindEvents();
+  if (window.ContainersPage) ContainersPage.init();
   if (state.token) {
     $("#ui-token").value = state.token;
     $("#default-agent").value = state.agentId;

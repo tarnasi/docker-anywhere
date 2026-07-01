@@ -6,6 +6,12 @@
   <meta name="theme-color" content="#0f1419" />
   <title>Docker Anywhere</title>
   <link rel="stylesheet" href="/static/styles.css" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      corePlugins: { preflight: false },
+    };
+  </script>
 </head>
 <body>
   <!-- Login -->
@@ -66,40 +72,99 @@
 
       <!-- Containers -->
       <section id="view-containers" class="view hidden">
-        <div class="containers-page">
-          <div id="containers-stats" class="containers-stats"></div>
-          <div class="containers-toolbar">
-            <input
-              id="containers-search"
-              type="search"
-              placeholder="Search containers…"
-              autocomplete="off"
-              aria-label="Search containers"
-            />
-            <div class="segmented" role="tablist" aria-label="Filter by status">
-              <button type="button" class="segmented__btn active" data-container-filter="all">All</button>
-              <button type="button" class="segmented__btn" data-container-filter="running">Running</button>
-              <button type="button" class="segmented__btn" data-container-filter="exited">Exited</button>
+        <div class="space-y-3 rounded-xl border border-slate-700 bg-slate-900 p-3 sm:p-4">
+
+          <!-- Top toolbar: search left, filters center, stats right -->
+          <div class="flex flex-col gap-3 lg:flex-row lg:items-center">
+            <div class="relative flex-1 min-w-0">
+              <input
+                id="containers-search"
+                type="search"
+                placeholder="Search containers…"
+                autocomplete="off"
+                aria-label="Search containers"
+                class="w-full rounded-xl border border-slate-700 bg-slate-800 py-2.5 pl-10 pr-4 text-sm text-slate-200 placeholder-slate-500 transition duration-150 focus:border-blue-500/50 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+              />
+              <svg class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+            </div>
+            <div class="flex items-center justify-center gap-1 rounded-xl border border-slate-700 bg-slate-800 p-1">
+              <button type="button" data-c-filter="all" class="rounded-lg bg-slate-700 px-3 py-1.5 text-xs font-semibold text-slate-100 transition duration-150">All</button>
+              <button type="button" data-c-filter="running" class="rounded-lg px-3 py-1.5 text-xs font-semibold text-slate-400 transition duration-150 hover:bg-slate-700/50 hover:text-slate-200">Running</button>
+              <button type="button" data-c-filter="exited" class="rounded-lg px-3 py-1.5 text-xs font-semibold text-slate-400 transition duration-150 hover:bg-slate-700/50 hover:text-slate-200">Exited</button>
             </div>
           </div>
 
-          <div class="containers-table-wrap">
-            <table class="containers-table">
+          <!-- Bulk actions bar -->
+          <div id="containers-bulk-bar" class="hidden flex flex-wrap items-center gap-3 rounded-xl border border-blue-500/30 bg-blue-500/5 px-4 py-3">
+            <span id="containers-bulk-count" class="text-sm font-medium text-slate-200">0 selected</span>
+            <div class="relative ml-auto flex items-center gap-2">
+              <input type="hidden" id="bulk-action-pick" value="restart" />
+              <div class="relative">
+                <button type="button" id="bulk-dropdown-btn" class="flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm font-medium text-slate-200 transition duration-150 hover:bg-slate-700">
+                  Actions
+                  <svg class="h-4 w-4 text-slate-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
+                </button>
+                <div id="bulk-dropdown-menu" class="absolute right-0 top-full z-30 mt-1 hidden min-w-[140px] overflow-hidden rounded-xl border border-slate-700 bg-slate-800 py-1 shadow-xl">
+                  <button type="button" data-bulk-action="start" class="block w-full px-4 py-2 text-left text-sm text-slate-200 transition duration-150 hover:bg-slate-700">Start</button>
+                  <button type="button" data-bulk-action="stop" class="block w-full px-4 py-2 text-left text-sm text-slate-200 transition duration-150 hover:bg-slate-700">Stop</button>
+                  <button type="button" data-bulk-action="restart" class="block w-full px-4 py-2 text-left text-sm text-slate-200 transition duration-150 hover:bg-slate-700">Restart</button>
+                  <button type="button" data-bulk-action="build" class="block w-full px-4 py-2 text-left text-sm text-slate-200 transition duration-150 hover:bg-slate-700">Build</button>
+                  <button type="button" data-bulk-action="delete" class="block w-full px-4 py-2 text-left text-sm text-red-400 transition duration-150 hover:bg-slate-700">Delete</button>
+                </div>
+              </div>
+              <button type="button" id="bulk-execute" class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition duration-150 hover:bg-blue-500 active:scale-[0.98]">Execute</button>
+            </div>
+          </div>
+
+          <!-- Table -->
+          <div id="containers-table-wrap" class="overflow-x-auto overflow-y-auto rounded-xl border border-slate-700" style="max-height: calc(100dvh - 16rem);">
+            <table class="w-full min-w-[800px] border-collapse text-sm">
               <thead>
-                <tr>
-                  <th class="col-sticky-left">Name</th>
-                  <th class="col-image">Image</th>
-                  <th class="col-status">Status</th>
-                  <th class="col-project">Project</th>
-                  <th class="col-sticky-right">Actions</th>
+                <tr class="border-b border-slate-700 bg-slate-800">
+                  <th class="sticky left-0 top-0 z-20 w-10 bg-slate-800 px-3 py-3 shadow-[2px_0_6px_-2px_rgba(0,0,0,0.4)]">
+                    <input type="checkbox" id="containers-select-all" class="h-4 w-4 rounded border-slate-600 bg-slate-900 text-blue-500 focus:ring-blue-500/40" aria-label="Select all" />
+                  </th>
+                  <th class="sticky left-10 top-0 z-20 bg-slate-800 px-3 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-400 shadow-[2px_0_6px_-2px_rgba(0,0,0,0.4)]">Name</th>
+                  <th class="sticky top-0 z-10 bg-slate-800 px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">Image</th>
+                  <th class="sticky top-0 z-10 bg-slate-800 px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">Status</th>
+                  <th class="sticky top-0 z-10 bg-slate-800 px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">Project</th>
+                  <th class="sticky right-0 top-0 z-20 bg-slate-800 px-3 py-3 text-right text-xs font-semibold uppercase tracking-wider text-slate-400 shadow-[-2px_0_6px_-2px_rgba(0,0,0,0.4)]">Actions</th>
                 </tr>
               </thead>
               <tbody id="containers-body"></tbody>
             </table>
           </div>
-          <div id="containers-empty" class="containers-empty hidden">No containers synced yet.</div>
-          <div id="containers-filtered-empty" class="containers-empty hidden">No containers match your filters.</div>
+
+          <div id="containers-empty" class="hidden rounded-xl border border-dashed border-slate-700 bg-slate-800/50 py-12 text-center text-sm text-slate-400">No containers synced yet.</div>
+          <div id="containers-filtered-empty" class="hidden rounded-xl border border-dashed border-slate-700 bg-slate-800/50 py-12 text-center text-sm text-slate-400">No containers match your filters.</div>
         </div>
+
+        <!-- Slide-over panel -->
+        <div id="container-slideover" class="fixed inset-0 z-50 hidden">
+          <div id="container-slideover-backdrop" class="absolute inset-0 bg-black/60 transition duration-150"></div>
+          <div id="container-slideover-panel" class="absolute right-0 top-0 flex h-full w-[420px] max-w-full translate-x-full flex-col border-l border-slate-700 bg-slate-800 shadow-2xl transition-transform duration-150">
+            <div class="flex items-center justify-between border-b border-slate-700 px-5 py-4">
+              <h3 id="slideover-title" class="text-base font-semibold text-slate-200">Action</h3>
+              <button type="button" id="slideover-close" class="flex h-9 w-9 items-center justify-center rounded-lg text-slate-400 transition duration-150 hover:bg-slate-700 hover:text-slate-200" aria-label="Close">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+              </button>
+            </div>
+            <div class="border-b border-slate-700 px-5 py-3">
+              <pre id="slideover-command" class="whitespace-pre-wrap rounded-lg bg-slate-900 px-3 py-2 font-mono text-xs text-slate-300 ring-1 ring-slate-700"></pre>
+            </div>
+            <div id="slideover-logs" class="flex-1 overflow-y-auto px-5 py-4 space-y-1"></div>
+            <div class="flex gap-2 border-t border-slate-700 px-5 py-4">
+              <button type="button" id="slideover-copy" class="flex flex-1 items-center justify-center gap-2 rounded-lg border border-slate-700 bg-slate-900 px-4 py-2.5 text-sm font-medium text-slate-200 transition duration-150 hover:bg-slate-700">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+                Copy logs
+              </button>
+              <button type="button" id="slideover-close-btn" class="flex-1 rounded-lg bg-slate-700 px-4 py-2.5 text-sm font-medium text-slate-200 transition duration-150 hover:bg-slate-600">Close</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Toasts -->
+        <div id="container-toasts" class="pointer-events-none fixed right-4 top-4 z-[60] flex w-80 max-w-[calc(100vw-2rem)] flex-col gap-2"></div>
       </section>
 
       <!-- Images -->
@@ -213,6 +278,7 @@
     </nav>
   </div>
 
-  <script src="/static/app.js?v=6"></script>
+  <script src="/static/app.js?v=7"></script>
+  <script src="/static/containers.js?v=1"></script>
 </body>
 </html>
