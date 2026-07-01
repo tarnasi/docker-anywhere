@@ -83,28 +83,20 @@ function isRunningStatus(status) {
   return s.includes("up") || s.includes("running");
 }
 
-function projectBasename(path) {
-  if (!path) return "—";
-  const parts = path.replace(/\/+$/, "").split("/");
-  return parts[parts.length - 1] || path;
-}
+const ICON_DOWN = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>`;
+const ICON_UP = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"/></svg>`;
+const ICON_BUILD = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>`;
 
-const FOLDER_ICON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>`;
-
-function composeActionToolbar(projectPath, { compact = false } = {}) {
+function composeIconActions(projectPath) {
   if (!projectPath) return `<span class="text-muted">—</span>`;
   const path = escapeHtml(projectPath);
-  const actions = compact
-    ? [["compose_project_up", "Up", "btn-primary"]]
-    : [
-      ["compose_project_up", "Up", "btn-primary"],
-      ["compose_project_down_rmi", "Down", "btn-danger"],
-      ["compose_project_up_force", "Recreate", "btn-ghost"],
-      ["compose_project_build_nocache", "Build", "btn-ghost"],
-    ];
-  const cls = compact ? "action-toolbar action-toolbar--compact" : "action-toolbar";
-  return `<div class="${cls}">${actions.map(([action, label, btnCls]) =>
-    `<button type="button" class="btn ${btnCls} btn-sm compose-btn" data-compose-action="${action}" data-project-path="${path}">${label}</button>`
+  const items = [
+    ["compose_project_down_rmi", "Down", "icon-btn--danger", ICON_DOWN],
+    ["compose_project_up", "Up", "icon-btn--primary", ICON_UP],
+    ["compose_project_build_nocache", "Build", "icon-btn--warning", ICON_BUILD],
+  ];
+  return `<div class="icon-actions">${items.map(([action, label, cls, icon]) =>
+    `<button type="button" class="icon-btn ${cls} compose-btn" data-compose-action="${action}" data-project-path="${path}" title="${label}" aria-label="${label}">${icon}</button>`
   ).join("")}</div>`;
 }
 
@@ -135,8 +127,8 @@ function escapeHtml(value) {
     .replaceAll('"', "&quot;");
 }
 
-function composeButtonsHtml(projectPath, compact = false) {
-  return composeActionToolbar(projectPath, { compact });
+function composeButtonsHtml(projectPath) {
+  return composeIconActions(projectPath);
 }
 
 function uniqueProjectPaths(containers) {
@@ -226,60 +218,24 @@ function renderContainersView(rows) {
     <span class="stat-chip stat-chip--exited"><strong>${exited}</strong> exited</span>
   `;
 
-  const paths = uniqueProjectPaths(rows);
-  const countByPath = Object.fromEntries(paths.map(p => [
-    p,
-    rows.filter(c => c.project_path === p).length,
-  ]));
-
-  $("#projects-empty").classList.toggle("hidden", paths.length > 0);
-  $("#projects-grid").innerHTML = paths.map(p => `
-    <article class="project-card">
-      <div class="project-card__head">
-        <div class="project-card__icon">${FOLDER_ICON}</div>
-        <div class="project-card__info">
-          <div class="project-card__name">${escapeHtml(projectBasename(p))}</div>
-          <div class="project-card__path mono" title="${escapeHtml(p)}">${escapeHtml(p)}</div>
-        </div>
-        <span class="project-card__count">${countByPath[p]}</span>
-      </div>
-      <div class="project-card__actions">${composeActionToolbar(p)}</div>
-    </article>
-  `).join("");
-
   const filtered = filterContainers(rows);
+  const wrap = $(".containers-table-wrap");
+  const tbody = $("#containers-body");
+
   $("#containers-empty").classList.toggle("hidden", rows.length > 0);
   $("#containers-filtered-empty").classList.toggle("hidden", rows.length === 0 || filtered.length > 0);
-  $("#containers-count-label").textContent = filtered.length === rows.length
-    ? `${rows.length} container${rows.length === 1 ? "" : "s"}`
-    : `Showing ${filtered.length} of ${rows.length}`;
+  wrap.classList.toggle("hidden", rows.length === 0 || filtered.length === 0);
 
-  $("#containers-list").classList.toggle("hidden", rows.length > 0 && filtered.length === 0);
-  $("#containers-list").innerHTML = filtered.map(c => `
-    <article class="container-card">
-      <div class="container-card__top">
-        <div class="container-card__name" title="${escapeHtml(c.name || "")}">${escapeHtml(c.name || "—")}</div>
-        <div class="container-card__status">${statusBadge(c.status)}</div>
-      </div>
-      <div class="container-card__image mono" title="${escapeHtml(c.image || "")}">${escapeHtml(c.image || "—")}</div>
-      <div class="container-card__status container-card__status--desktop">${statusBadge(c.status)}</div>
-      <div class="container-card__project mono" title="${escapeHtml(c.project_path || "")}">${escapeHtml(c.project_path || "—")}</div>
-      <div class="container-card__rows">
-        <div class="container-card__row">
-          <span class="label">Image</span>
-          <span class="value mono">${escapeHtml(c.image || "—")}</span>
-        </div>
-        <div class="container-card__row">
-          <span class="label">Project</span>
-          <span class="value mono">${escapeHtml(c.project_path || "—")}</span>
-        </div>
-      </div>
-      <div class="container-card__actions-wrap">
-        <div class="container-card__actions">
-          ${composeActionToolbar(c.project_path, { compact: true })}
-        </div>
-      </div>
-    </article>
+  tbody.innerHTML = filtered.map(c => `
+    <tr>
+      <td class="col-sticky-left">
+        <span class="container-name" title="${escapeHtml(c.name || "")}">${escapeHtml(c.name || "—")}</span>
+      </td>
+      <td class="mono">${escapeHtml(c.image || "—")}</td>
+      <td>${statusBadge(c.status)}</td>
+      <td class="mono">${escapeHtml(c.project_path || "—")}</td>
+      <td class="col-sticky-right">${composeIconActions(c.project_path)}</td>
+    </tr>
   `).join("");
 }
 

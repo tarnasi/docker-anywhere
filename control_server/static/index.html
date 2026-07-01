@@ -85,31 +85,22 @@
             </div>
           </div>
 
-          <section class="containers-section" aria-labelledby="projects-heading">
-            <div class="section-head">
-              <h2 id="projects-heading">Compose Projects</h2>
-              <p class="section-sub">Run stack-wide actions in each project directory</p>
-            </div>
-            <div id="projects-grid" class="projects-grid"></div>
-            <div id="projects-empty" class="section-empty hidden">No compose project paths synced yet.</div>
-          </section>
-
-          <section class="containers-section" aria-labelledby="containers-heading">
-            <div class="section-head">
-              <h2 id="containers-heading">All Containers</h2>
-              <p class="section-sub" id="containers-count-label">—</p>
-            </div>
-            <div class="containers-list-head" aria-hidden="true">
-              <span>Name</span>
-              <span>Image</span>
-              <span>Status</span>
-              <span>Project</span>
-              <span>Actions</span>
-            </div>
-            <div id="containers-list" class="containers-list"></div>
-            <div id="containers-empty" class="section-empty hidden">No containers synced yet.</div>
-            <div id="containers-filtered-empty" class="section-empty hidden">No containers match your filters.</div>
-          </section>
+          <div class="containers-table-wrap table-wrap">
+            <table class="containers-table">
+              <thead>
+                <tr>
+                  <th class="col-sticky-left">Name</th>
+                  <th>Image</th>
+                  <th>Status</th>
+                  <th>Project</th>
+                  <th class="col-sticky-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="containers-body"></tbody>
+            </table>
+          </div>
+          <div id="containers-empty" class="section-empty hidden">No containers synced yet.</div>
+          <div id="containers-filtered-empty" class="section-empty hidden">No containers match your filters.</div>
         </div>
       </section>
 
@@ -224,6 +215,6 @@
     </nav>
   </div>
 
-  <script src="/static/app.js?v=4"></script>
+  <script src="/static/app.js?v=5"></script>
 </body>
 </html>
