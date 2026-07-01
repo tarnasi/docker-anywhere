@@ -1,60 +1,22 @@
-# Docker Anywhere — Private Server Agent (hardened systemd)
+# Simple agent service — runs as user saxon (change User= if needed)
 #
-# Install: see deploy/private-server/install.sh
-# Logs:    journalctl -u secure-agent -f
-#           tail -f /var/log/secure-agent/agent.log
+#   sudo cp deploy/private-server/secure-agent.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now secure-agent
 
 [Unit]
-Description=Docker Anywhere Agent (outbound-only polling)
-Documentation=https://github.com/your-org/docker-anywhere
-After=network-online.target docker.service
-Wants=network-online.target
-Requires=docker.service
+Description=Docker Anywhere Agent
+After=network.target docker.service
 
 [Service]
 Type=simple
-User=dockeragent
-Group=dockeragent
-WorkingDirectory=/opt/docker-anywhere
-
-EnvironmentFile=/opt/docker-anywhere/agent/.env
-
-# Use venv directly (no shell, no uv wrapper)
-ExecStart=/opt/docker-anywhere/.venv/bin/uvicorn agent.main:app --host 127.0.0.1 --port 8080
-
+User=saxon
+Group=saxon
+WorkingDirectory=/home/app/.docker/anywhere
+EnvironmentFile=/home/app/.docker/anywhere/agent/.env
+ExecStart=/home/app/.docker/anywhere/.venv/bin/uvicorn agent.main:app --host 127.0.0.1 --port 8080
 Restart=always
 RestartSec=5
-StartLimitIntervalSec=300
-StartLimitBurst=5
-
-# Docker socket access via supplementary group
-SupplementaryGroups=docker
-
-# ── Hardening (inspired by minimal-privilege agent pattern) ─────────────────
-PrivateTmp=yes
-PrivateDevices=yes
-ProtectSystem=strict
-ProtectHome=yes
-NoNewPrivileges=yes
-CapabilityBoundingSet=
-ProtectKernelTunables=yes
-ProtectKernelModules=yes
-ProtectControlGroups=yes
-RestrictRealtime=yes
-RestrictSUIDSGID=yes
-LockPersonality=yes
-RestrictNamespaces=yes
-RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
-
-# Root filesystem read-only; only these paths writable
-ReadOnlyPaths=/
-ReadWritePaths=/opt/docker-anywhere /var/log/secure-agent
-
-# Add your Docker project dirs (compose work dirs) — one line per path:
-# ReadWritePaths=/opt/docker-anywhere /var/log/secure-agent /opt/app /home/projects/myapp
-
-# Optional: allow server_reboot action (configure sudoers separately)
-# See deploy/private-server/sudoers-reboot.example
 
 [Install]
 WantedBy=multi-user.target

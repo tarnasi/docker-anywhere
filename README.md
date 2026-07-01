@@ -161,15 +161,13 @@ If using PM2, nginx is enough — PM2 keeps the app running.
 
 ## Deploy agent (private production server)
 
-See **[deploy/README.md](deploy/README.md)** for full steps.
+**Simple guide:** [deploy/private-server/README.md](deploy/private-server/README.md)
 
 ```bash
-git clone <repo> /opt/docker-anywhere
-cd /opt/docker-anywhere
-sudo bash deploy/private-server/install.sh
-sudo nano /opt/docker-anywhere/agent/.env
-sudo nano /etc/systemd/system/secure-agent.service   # add ReadWritePaths for compose dirs
-sudo systemctl start secure-agent
+cd /home/app/.docker/anywhere
+bash deploy/private-server/setup.sh
+nano agent/.env
+pm2 start agent/ecosystem.config.cjs && pm2 save
 ```
 
 ## Usage
