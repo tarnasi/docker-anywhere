@@ -70,6 +70,8 @@ function statusBadge(status) {
 function shortStatus(status) {
   if (!status) return "—";
   const s = status.toLowerCase();
+  if (s.includes("restarting")) return "Restarting";
+  if (s.includes("paused")) return "Paused";
   if (s.includes("up") || s.includes("running")) return "Running";
   if (s.startsWith("exited")) {
     const m = status.match(/exited\s*\((\d+)\)/i);
@@ -78,25 +80,43 @@ function shortStatus(status) {
   return status.length > 28 ? `${status.slice(0, 25)}…` : status;
 }
 
-function isRunningStatus(status) {
+function containerStatusBadge(status) {
   const s = (status || "").toLowerCase();
-  return s.includes("up") || s.includes("running");
+  let cls = "exited";
+  if (s.includes("restarting")) cls = "restarting";
+  else if (s.includes("paused")) cls = "paused";
+  else if (s.includes("up") || s.includes("running")) cls = "running";
+  const label = shortStatus(status);
+  return `<span class="container-badge container-badge--${cls}">${escapeHtml(label)}</span>`;
 }
 
-const ICON_DOWN = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>`;
-const ICON_UP = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"/></svg>`;
-const ICON_BUILD = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>`;
+function isExitedStatus(status) {
+  const s = (status || "").toLowerCase();
+  return s.includes("exited") || s.includes("dead") || s.includes("created");
+}
+
+function isRunningStatus(status) {
+  const s = (status || "").toLowerCase();
+  return s.includes("up") || s.includes("running") || s.includes("restarting");
+}
+
+/* Lucide icon SVGs (wrench, arrow-up, trash-2) — inlined for reliable rendering */
+const LUCIDE = {
+  wrench: `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>`,
+  arrowUp: `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></svg>`,
+  trash2: `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>`,
+};
 
 function composeIconActions(projectPath) {
-  if (!projectPath) return `<span class="text-muted">—</span>`;
+  if (!projectPath) return `<span class="containers-muted">—</span>`;
   const path = escapeHtml(projectPath);
   const items = [
-    ["compose_project_down_rmi", "Down", "icon-btn--danger", ICON_DOWN],
-    ["compose_project_up", "Up", "icon-btn--primary", ICON_UP],
-    ["compose_project_build_nocache", "Build", "icon-btn--warning", ICON_BUILD],
+    ["compose_project_build_nocache", "Build", "container-icon-btn--build", LUCIDE.wrench],
+    ["compose_project_up", "Restart", "container-icon-btn--restart", LUCIDE.arrowUp],
+    ["compose_project_down_rmi", "Delete", "container-icon-btn--delete", LUCIDE.trash2],
   ];
-  return `<div class="icon-actions">${items.map(([action, label, cls, icon]) =>
-    `<button type="button" class="icon-btn ${cls} compose-btn" data-compose-action="${action}" data-project-path="${path}" title="${label}" aria-label="${label}">${icon}</button>`
+  return `<div class="container-icon-actions">${items.map(([action, label, cls, icon]) =>
+    `<button type="button" class="container-icon-btn ${cls} compose-btn" data-compose-action="${action}" data-project-path="${path}" title="${label}" aria-label="${label}">${icon}</button>`
   ).join("")}</div>`;
 }
 
@@ -202,7 +222,7 @@ function filterContainers(rows) {
   const q = state.containerSearch.trim().toLowerCase();
   return rows.filter(c => {
     if (state.containerFilter === "running" && !isRunningStatus(c.status)) return false;
-    if (state.containerFilter === "exited" && isRunningStatus(c.status)) return false;
+    if (state.containerFilter === "exited" && !isExitedStatus(c.status)) return false;
     if (!q) return true;
     const hay = [c.name, c.image, c.status, c.project_path].join(" ").toLowerCase();
     return hay.includes(q);
@@ -213,9 +233,9 @@ function renderContainersView(rows) {
   const running = rows.filter(c => isRunningStatus(c.status)).length;
   const exited = rows.length - running;
   $("#containers-stats").innerHTML = `
-    <span class="stat-chip"><strong>${rows.length}</strong> total</span>
-    <span class="stat-chip stat-chip--running"><strong>${running}</strong> running</span>
-    <span class="stat-chip stat-chip--exited"><strong>${exited}</strong> exited</span>
+    <span><strong>${rows.length}</strong> total</span>
+    <span><strong>${running}</strong> running</span>
+    <span><strong>${exited}</strong> exited</span>
   `;
 
   const filtered = filterContainers(rows);
@@ -231,10 +251,10 @@ function renderContainersView(rows) {
       <td class="col-sticky-left">
         <span class="container-name" title="${escapeHtml(c.name || "")}">${escapeHtml(c.name || "—")}</span>
       </td>
-      <td class="mono">${escapeHtml(c.image || "—")}</td>
-      <td>${statusBadge(c.status)}</td>
-      <td class="mono">${escapeHtml(c.project_path || "—")}</td>
-      <td class="col-sticky-right">${composeIconActions(c.project_path)}</td>
+      <td class="col-image mono">${escapeHtml(c.image || "—")}</td>
+      <td class="col-status">${containerStatusBadge(c.status)}</td>
+      <td class="col-project mono">${escapeHtml(c.project_path || "—")}</td>
+      <td class="col-sticky-right col-actions">${composeIconActions(c.project_path)}</td>
     </tr>
   `).join("");
 }

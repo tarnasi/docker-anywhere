@@ -67,40 +67,38 @@
       <!-- Containers -->
       <section id="view-containers" class="view hidden">
         <div class="containers-page">
+          <div id="containers-stats" class="containers-stats"></div>
           <div class="containers-toolbar">
-            <div class="containers-toolbar__stats" id="containers-stats"></div>
-            <div class="containers-toolbar__filters">
-              <input
-                id="containers-search"
-                type="search"
-                placeholder="Search containers…"
-                autocomplete="off"
-                aria-label="Search containers"
-              />
-              <div class="segmented" role="tablist" aria-label="Filter by status">
-                <button type="button" class="segmented__btn active" data-container-filter="all">All</button>
-                <button type="button" class="segmented__btn" data-container-filter="running">Running</button>
-                <button type="button" class="segmented__btn" data-container-filter="exited">Exited</button>
-              </div>
+            <input
+              id="containers-search"
+              type="search"
+              placeholder="Search containers…"
+              autocomplete="off"
+              aria-label="Search containers"
+            />
+            <div class="segmented" role="tablist" aria-label="Filter by status">
+              <button type="button" class="segmented__btn active" data-container-filter="all">All</button>
+              <button type="button" class="segmented__btn" data-container-filter="running">Running</button>
+              <button type="button" class="segmented__btn" data-container-filter="exited">Exited</button>
             </div>
           </div>
 
-          <div class="containers-table-wrap table-wrap">
+          <div class="containers-table-wrap">
             <table class="containers-table">
               <thead>
                 <tr>
                   <th class="col-sticky-left">Name</th>
-                  <th>Image</th>
-                  <th>Status</th>
-                  <th>Project</th>
+                  <th class="col-image">Image</th>
+                  <th class="col-status">Status</th>
+                  <th class="col-project">Project</th>
                   <th class="col-sticky-right">Actions</th>
                 </tr>
               </thead>
               <tbody id="containers-body"></tbody>
             </table>
           </div>
-          <div id="containers-empty" class="section-empty hidden">No containers synced yet.</div>
-          <div id="containers-filtered-empty" class="section-empty hidden">No containers match your filters.</div>
+          <div id="containers-empty" class="containers-empty hidden">No containers synced yet.</div>
+          <div id="containers-filtered-empty" class="containers-empty hidden">No containers match your filters.</div>
         </div>
       </section>
 
@@ -215,6 +213,6 @@
     </nav>
   </div>
 
-  <script src="/static/app.js?v=5"></script>
+  <script src="/static/app.js?v=6"></script>
 </body>
 </html>
