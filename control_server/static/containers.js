@@ -166,11 +166,28 @@
   }
 
   function syncFilterButtons() {
-    $$("[data-c-filter]").forEach(btn => {
+    $$("#view-containers [data-c-filter]").forEach(btn => {
       const active = btn.dataset.cFilter === cState.filter;
-      btn.className = active
-        ? "rounded-lg bg-slate-700 px-3 py-1.5 text-xs font-semibold text-slate-100 transition duration-150"
-        : "rounded-lg px-3 py-1.5 text-xs font-semibold text-slate-400 transition duration-150 hover:bg-slate-800 hover:text-slate-200";
+      btn.classList.toggle("c-filter-active", active);
+    });
+  }
+
+  function setBulkAction(key) {
+    const cfg = BULK_ACTIONS[key];
+    if (!cfg) return;
+    const pick = $("#bulk-action-pick");
+    if (pick) pick.value = key;
+    const label = $("#bulk-dropdown-label");
+    if (label) label.textContent = cfg.label;
+    $$(".bulk-menu-item").forEach(btn => {
+      const on = btn.dataset.bulkAction === key;
+      const isDelete = btn.dataset.bulkAction === "delete";
+      btn.classList.toggle("bulk-menu-item--active", on);
+      btn.classList.toggle("bg-slate-700", on);
+      btn.classList.toggle("text-white", on && !isDelete);
+      btn.classList.toggle("text-red-400", isDelete);
+      btn.classList.toggle("bg-slate-800", !on);
+      btn.classList.toggle("text-slate-200", !on && !isDelete);
     });
   }
 
@@ -426,6 +443,8 @@
       $("#bulk-dropdown-menu")?.classList.toggle("hidden", !cState.bulkDropdownOpen);
     });
 
+    $("#bulk-dropdown-menu")?.addEventListener("click", (e) => e.stopPropagation());
+
     document.addEventListener("click", () => {
       if (cState.bulkDropdownOpen) {
         cState.bulkDropdownOpen = false;
@@ -437,11 +456,13 @@
       btn.addEventListener("click", (e) => {
         e.stopPropagation();
         const key = btn.dataset.bulkAction;
-        $("#bulk-action-pick").value = key;
+        setBulkAction(key);
         $("#bulk-dropdown-menu")?.classList.add("hidden");
         cState.bulkDropdownOpen = false;
       });
     });
+
+    setBulkAction($("#bulk-action-pick")?.value || "restart");
 
     $("#bulk-execute")?.addEventListener("click", () => {
       const key = $("#bulk-action-pick")?.value;

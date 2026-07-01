@@ -88,9 +88,9 @@
               <svg class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
             </div>
             <div class="flex items-center justify-center gap-1 rounded-xl border border-slate-700 bg-slate-800 p-1">
-              <button type="button" data-c-filter="all" class="rounded-lg bg-slate-700 px-3 py-1.5 text-xs font-semibold text-slate-100 transition duration-150">All</button>
-              <button type="button" data-c-filter="running" class="rounded-lg px-3 py-1.5 text-xs font-semibold text-slate-400 transition duration-150 hover:bg-slate-700/50 hover:text-slate-200">Running</button>
-              <button type="button" data-c-filter="exited" class="rounded-lg px-3 py-1.5 text-xs font-semibold text-slate-400 transition duration-150 hover:bg-slate-700/50 hover:text-slate-200">Exited</button>
+              <button type="button" data-c-filter="all" class="c-filter-active rounded-lg px-3 py-1.5 text-xs font-semibold transition duration-150">All</button>
+              <button type="button" data-c-filter="running" class="rounded-lg px-3 py-1.5 text-xs font-semibold transition duration-150">Running</button>
+              <button type="button" data-c-filter="exited" class="rounded-lg px-3 py-1.5 text-xs font-semibold transition duration-150">Exited</button>
             </div>
           </div>
 
@@ -100,16 +100,16 @@
             <div class="relative ml-auto flex items-center gap-2">
               <input type="hidden" id="bulk-action-pick" value="restart" />
               <div class="relative">
-                <button type="button" id="bulk-dropdown-btn" class="flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm font-medium text-slate-200 transition duration-150 hover:bg-slate-700">
-                  Actions
-                  <svg class="h-4 w-4 text-slate-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
+                <button type="button" id="bulk-dropdown-btn" class="flex items-center gap-2 rounded-lg border border-slate-600 bg-slate-800 px-3 py-2 text-sm font-medium text-slate-200 transition duration-150 hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/40">
+                  <span id="bulk-dropdown-label">Restart</span>
+                  <svg class="h-4 w-4 shrink-0 text-slate-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
                 </button>
-                <div id="bulk-dropdown-menu" class="absolute right-0 top-full z-30 mt-1 hidden min-w-[140px] overflow-hidden rounded-xl border border-slate-700 bg-slate-800 py-1 shadow-xl">
-                  <button type="button" data-bulk-action="start" class="block w-full px-4 py-2 text-left text-sm text-slate-200 transition duration-150 hover:bg-slate-700">Start</button>
-                  <button type="button" data-bulk-action="stop" class="block w-full px-4 py-2 text-left text-sm text-slate-200 transition duration-150 hover:bg-slate-700">Stop</button>
-                  <button type="button" data-bulk-action="restart" class="block w-full px-4 py-2 text-left text-sm text-slate-200 transition duration-150 hover:bg-slate-700">Restart</button>
-                  <button type="button" data-bulk-action="build" class="block w-full px-4 py-2 text-left text-sm text-slate-200 transition duration-150 hover:bg-slate-700">Build</button>
-                  <button type="button" data-bulk-action="delete" class="block w-full px-4 py-2 text-left text-sm text-red-400 transition duration-150 hover:bg-slate-700">Delete</button>
+                <div id="bulk-dropdown-menu" class="absolute right-0 top-full z-50 mt-1.5 hidden min-w-[160px] overflow-hidden rounded-xl border border-slate-600 bg-slate-800 py-1 shadow-2xl ring-1 ring-slate-600/80">
+                  <button type="button" data-bulk-action="start" class="bulk-menu-item block w-full border-0 bg-slate-800 px-4 py-2.5 text-left text-sm font-medium text-slate-200 transition duration-150 hover:bg-slate-700">Start</button>
+                  <button type="button" data-bulk-action="stop" class="bulk-menu-item block w-full border-0 bg-slate-800 px-4 py-2.5 text-left text-sm font-medium text-slate-200 transition duration-150 hover:bg-slate-700">Stop</button>
+                  <button type="button" data-bulk-action="restart" class="bulk-menu-item bulk-menu-item--active block w-full border-0 bg-slate-700 px-4 py-2.5 text-left text-sm font-medium text-white transition duration-150 hover:bg-slate-600">Restart</button>
+                  <button type="button" data-bulk-action="build" class="bulk-menu-item block w-full border-0 bg-slate-800 px-4 py-2.5 text-left text-sm font-medium text-slate-200 transition duration-150 hover:bg-slate-700">Build</button>
+                  <button type="button" data-bulk-action="delete" class="bulk-menu-item block w-full border-0 bg-slate-800 px-4 py-2.5 text-left text-sm font-medium text-red-400 transition duration-150 hover:bg-red-500/10">Delete</button>
                 </div>
               </div>
               <button type="button" id="bulk-execute" class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition duration-150 hover:bg-blue-500 active:scale-[0.98]">Execute</button>
@@ -165,6 +165,39 @@
 
         <!-- Toasts -->
         <div id="container-toasts" class="pointer-events-none fixed right-4 top-4 z-[60] flex w-80 max-w-[calc(100vw-2rem)] flex-col gap-2"></div>
+
+        <style>
+          /* Containers-only fixes — global CSS has no button reset (preflight off) */
+          #view-containers .bulk-menu-item {
+            appearance: none;
+            -webkit-appearance: none;
+            cursor: pointer;
+            font-family: inherit;
+          }
+          #view-containers #bulk-dropdown-menu {
+            background-color: #1e293b !important;
+          }
+          #view-containers .bulk-menu-item--active {
+            background-color: #334155 !important;
+            color: #f1f5f9 !important;
+          }
+          #view-containers [data-c-filter] {
+            appearance: none;
+            -webkit-appearance: none;
+            cursor: pointer;
+            font-family: inherit;
+            border: 1px solid transparent;
+          }
+          #view-containers [data-c-filter].c-filter-active {
+            background-color: #334155 !important;
+            color: #f1f5f9 !important;
+            border-color: #475569 !important;
+          }
+          #view-containers [data-c-filter]:not(.c-filter-active) {
+            background-color: #1e293b !important;
+            color: #94a3b8 !important;
+          }
+        </style>
       </section>
 
       <!-- Images -->
@@ -279,6 +312,6 @@
   </div>
 
   <script src="/static/app.js?v=7"></script>
-  <script src="/static/containers.js?v=1"></script>
+  <script src="/static/containers.js?v=2"></script>
 </body>
 </html>
