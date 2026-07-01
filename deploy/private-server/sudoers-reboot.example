@@ -1,0 +1,7 @@
+# Optional — only if you use the server_reboot action.
+# Install:
+#   sudo cp deploy/private-server/sudoers-reboot.example /etc/sudoers.d/dockeragent-reboot
+#   sudo chmod 440 /etc/sudoers.d/dockeragent-reboot
+#   sudo visudo -c
+
+dockeragent ALL=(root) NOPASSWD: /sbin/reboot

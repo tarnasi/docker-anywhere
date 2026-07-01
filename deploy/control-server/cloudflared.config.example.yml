@@ -1,0 +1,15 @@
+# Cloudflare Tunnel — docker.devdiaries.work → PM2 app (no Caddy/nginx changes)
+#
+# 1. cloudflared tunnel login
+# 2. cloudflared tunnel create docker-anywhere
+# 3. cp this file to /etc/cloudflared/config.yml (edit tunnel ID + credentials path)
+# 4. cloudflared tunnel route dns docker-anywhere docker.devdiaries.work
+# 5. pm2 start cloudflared --name cloudflared-docker -- tunnel --config /etc/cloudflared/config.yml run
+
+tunnel: <YOUR-TUNNEL-ID>
+credentials-file: /root/.cloudflared/<YOUR-TUNNEL-ID>.json
+
+ingress:
+  - hostname: docker.devdiaries.work
+    service: http://127.0.0.1:8000
+  - service: http_status:404

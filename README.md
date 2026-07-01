@@ -32,6 +32,15 @@ uv run uvicorn agent.main:app --host 127.0.0.1 --port 8080
 
 Open http://localhost:8000 — login with your `UI_SECRET`.
 
+## Deploy files
+
+All deployment configs live in [`deploy/`](deploy/README.md):
+
+| Server | Path |
+|--------|------|
+| Control (devdiaries / docker.devdiaries.work) | `deploy/control-server/` |
+| Private (agent) | `deploy/private-server/` |
+
 ## Deploy to devdiaries.work (control server)
 
 ### 1. Copy project to server
@@ -82,7 +91,7 @@ uv sync
 chmod +x scripts/pm2-start-control.sh
 mkdir -p logs
 
-pm2 start ecosystem.config.cjs
+pm2 start deploy/control-server/pm2.ecosystem.config.cjs
 pm2 status
 pm2 logs docker-anywhere-control --lines 50
 ```
@@ -152,29 +161,16 @@ If using PM2, nginx is enough — PM2 keeps the app running.
 
 ## Deploy agent (private production server)
 
-```bash
-cp agent/.env.example agent/.env
-nano agent/.env
-```
-
-| Variable | Value |
-|----------|-------|
-| `AGENT_ID` | e.g. `prod-server-01` |
-| `API_KEY` | Same as `AGENT_API_KEY` on control server |
-| `HMAC_SECRET` | Same as `AGENT_HMAC_SECRET` |
-| `CONTROL_SERVER_URL` | `https://devdiaries.work` |
-| `DOCKER_COMPOSE_FILE` | Path to your compose file |
-| `DOCKER_WORK_DIR` | Project directory |
-
-Install systemd service:
+See **[deploy/README.md](deploy/README.md)** for full steps.
 
 ```bash
-sudo cp agent/agent.service /etc/systemd/system/secure-agent.service
-sudo systemctl daemon-reload
-sudo systemctl enable --now secure-agent
+git clone <repo> /opt/docker-anywhere
+cd /opt/docker-anywhere
+sudo bash deploy/private-server/install.sh
+sudo nano /opt/docker-anywhere/agent/.env
+sudo nano /etc/systemd/system/secure-agent.service   # add ReadWritePaths for compose dirs
+sudo systemctl start secure-agent
 ```
-
-Ensure the agent user can run `docker` without password.
 
 ## Usage
 
