@@ -19,6 +19,9 @@ const state = {
   agentId: localStorage.getItem("agent_id") || "prod-server-01",
   view: "dashboard",
   refreshTimer: null,
+  containers: [],
+  containerFilter: "all",
+  containerSearch: "",
 };
 
 function $(sel) { return document.querySelector(sel); }
@@ -60,7 +63,49 @@ function statusBadge(status) {
   if (s.includes("up") || s.includes("running")) cls = "running";
   if (s === "pending" || s === "running") cls = s;
   if (s === "failed" || s === "rejected") cls = "failed";
-  return `<span class="badge ${cls}">${status || "—"}</span>`;
+  const label = shortStatus(status);
+  return `<span class="badge ${cls}">${escapeHtml(label)}</span>`;
+}
+
+function shortStatus(status) {
+  if (!status) return "—";
+  const s = status.toLowerCase();
+  if (s.includes("up") || s.includes("running")) return "Running";
+  if (s.startsWith("exited")) {
+    const m = status.match(/exited\s*\((\d+)\)/i);
+    return m ? `Exited (${m[1]})` : "Exited";
+  }
+  return status.length > 28 ? `${status.slice(0, 25)}…` : status;
+}
+
+function isRunningStatus(status) {
+  const s = (status || "").toLowerCase();
+  return s.includes("up") || s.includes("running");
+}
+
+function projectBasename(path) {
+  if (!path) return "—";
+  const parts = path.replace(/\/+$/, "").split("/");
+  return parts[parts.length - 1] || path;
+}
+
+const FOLDER_ICON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>`;
+
+function composeActionToolbar(projectPath, { compact = false } = {}) {
+  if (!projectPath) return `<span class="text-muted">—</span>`;
+  const path = escapeHtml(projectPath);
+  const actions = compact
+    ? [["compose_project_up", "Up", "btn-primary"]]
+    : [
+      ["compose_project_up", "Up", "btn-primary"],
+      ["compose_project_down_rmi", "Down", "btn-danger"],
+      ["compose_project_up_force", "Recreate", "btn-ghost"],
+      ["compose_project_build_nocache", "Build", "btn-ghost"],
+    ];
+  const cls = compact ? "action-toolbar action-toolbar--compact" : "action-toolbar";
+  return `<div class="${cls}">${actions.map(([action, label, btnCls]) =>
+    `<button type="button" class="btn ${btnCls} btn-sm compose-btn" data-compose-action="${action}" data-project-path="${path}">${label}</button>`
+  ).join("")}</div>`;
 }
 
 function showView(name) {
@@ -91,20 +136,7 @@ function escapeHtml(value) {
 }
 
 function composeButtonsHtml(projectPath, compact = false) {
-  if (!projectPath) return "—";
-  const path = escapeHtml(projectPath);
-  const btns = [
-    ["compose_project_up", "Up", "btn-primary"],
-    ["compose_project_down_rmi", "Down", "btn-danger"],
-    ["compose_project_up_force", "Recreate", "btn-primary"],
-    ["compose_project_build_nocache", "Build", "btn-primary"],
-  ];
-  const labels = compact
-    ? [["compose_project_up", "Up", "btn-primary"]]
-    : btns;
-  return `<div class="action-group">${labels.map(([action, label, cls]) =>
-    `<button type="button" class="btn ${cls} btn-sm compose-btn" data-compose-action="${action}" data-project-path="${path}">${label}</button>`
-  ).join("")}</div>`;
+  return composeActionToolbar(projectPath, { compact });
 }
 
 function uniqueProjectPaths(containers) {
@@ -174,33 +206,87 @@ async function refreshDashboard() {
   populateProjectSelect(paths, paths.includes(current) ? current : paths[0]);
 }
 
+function filterContainers(rows) {
+  const q = state.containerSearch.trim().toLowerCase();
+  return rows.filter(c => {
+    if (state.containerFilter === "running" && !isRunningStatus(c.status)) return false;
+    if (state.containerFilter === "exited" && isRunningStatus(c.status)) return false;
+    if (!q) return true;
+    const hay = [c.name, c.image, c.status, c.project_path].join(" ").toLowerCase();
+    return hay.includes(q);
+  });
+}
+
+function renderContainersView(rows) {
+  const running = rows.filter(c => isRunningStatus(c.status)).length;
+  const exited = rows.length - running;
+  $("#containers-stats").innerHTML = `
+    <span class="stat-chip"><strong>${rows.length}</strong> total</span>
+    <span class="stat-chip stat-chip--running"><strong>${running}</strong> running</span>
+    <span class="stat-chip stat-chip--exited"><strong>${exited}</strong> exited</span>
+  `;
+
+  const paths = uniqueProjectPaths(rows);
+  const countByPath = Object.fromEntries(paths.map(p => [
+    p,
+    rows.filter(c => c.project_path === p).length,
+  ]));
+
+  $("#projects-empty").classList.toggle("hidden", paths.length > 0);
+  $("#projects-grid").innerHTML = paths.map(p => `
+    <article class="project-card">
+      <div class="project-card__head">
+        <div class="project-card__icon">${FOLDER_ICON}</div>
+        <div class="project-card__info">
+          <div class="project-card__name">${escapeHtml(projectBasename(p))}</div>
+          <div class="project-card__path mono" title="${escapeHtml(p)}">${escapeHtml(p)}</div>
+        </div>
+        <span class="project-card__count">${countByPath[p]}</span>
+      </div>
+      <div class="project-card__actions">${composeActionToolbar(p)}</div>
+    </article>
+  `).join("");
+
+  const filtered = filterContainers(rows);
+  $("#containers-empty").classList.toggle("hidden", rows.length > 0);
+  $("#containers-filtered-empty").classList.toggle("hidden", rows.length === 0 || filtered.length > 0);
+  $("#containers-count-label").textContent = filtered.length === rows.length
+    ? `${rows.length} container${rows.length === 1 ? "" : "s"}`
+    : `Showing ${filtered.length} of ${rows.length}`;
+
+  $("#containers-list").classList.toggle("hidden", rows.length > 0 && filtered.length === 0);
+  $("#containers-list").innerHTML = filtered.map(c => `
+    <article class="container-card">
+      <div class="container-card__top">
+        <div class="container-card__name" title="${escapeHtml(c.name || "")}">${escapeHtml(c.name || "—")}</div>
+        <div class="container-card__status">${statusBadge(c.status)}</div>
+      </div>
+      <div class="container-card__image mono" title="${escapeHtml(c.image || "")}">${escapeHtml(c.image || "—")}</div>
+      <div class="container-card__status container-card__status--desktop">${statusBadge(c.status)}</div>
+      <div class="container-card__project mono" title="${escapeHtml(c.project_path || "")}">${escapeHtml(c.project_path || "—")}</div>
+      <div class="container-card__rows">
+        <div class="container-card__row">
+          <span class="label">Image</span>
+          <span class="value mono">${escapeHtml(c.image || "—")}</span>
+        </div>
+        <div class="container-card__row">
+          <span class="label">Project</span>
+          <span class="value mono">${escapeHtml(c.project_path || "—")}</span>
+        </div>
+      </div>
+      <div class="container-card__actions-wrap">
+        <div class="container-card__actions">
+          ${composeActionToolbar(c.project_path, { compact: true })}
+        </div>
+      </div>
+    </article>
+  `).join("");
+}
+
 async function refreshContainers() {
   const rows = await api("/api/ui/containers");
-  const filtered = rows.filter(r => r.agent_id === state.agentId || !state.agentId);
-  const paths = uniqueProjectPaths(filtered);
-  const projectsEl = $("#projects-actions");
-  if (paths.length) {
-    projectsEl.innerHTML = paths.map(p => `
-      <div style="margin-bottom:1rem">
-        <div class="mono" style="margin-bottom:.35rem">${escapeHtml(p)}</div>
-        ${composeButtonsHtml(p)}
-      </div>
-    `).join("");
-  } else {
-    projectsEl.innerHTML = `<p class="text-muted">No compose project paths synced yet.</p>`;
-  }
-
-  const tbody = $("#containers-body");
-  tbody.innerHTML = filtered.map(c => `
-    <tr>
-      <td>${escapeHtml(c.name || "—")}</td>
-      <td class="mono">${escapeHtml(c.image || "—")}</td>
-      <td>${statusBadge(c.status)}</td>
-      <td class="mono">${escapeHtml(c.project_path || "—")}</td>
-      <td class="actions-cell">${composeButtonsHtml(c.project_path, true)}</td>
-    </tr>
-  `).join("");
-  $("#containers-empty").classList.toggle("hidden", filtered.length > 0);
+  state.containers = rows.filter(r => r.agent_id === state.agentId || !state.agentId);
+  renderContainersView(state.containers);
 }
 
 async function refreshImages() {
@@ -407,6 +493,22 @@ function bindEvents() {
     } catch (err) {
       alert(err.message);
     }
+  });
+
+  const searchInput = $("#containers-search");
+  if (searchInput) {
+    searchInput.addEventListener("input", () => {
+      state.containerSearch = searchInput.value;
+      renderContainersView(state.containers);
+    });
+  }
+
+  $$("[data-container-filter]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      state.containerFilter = btn.dataset.containerFilter;
+      $$("[data-container-filter]").forEach(b => b.classList.toggle("active", b === btn));
+      renderContainersView(state.containers);
+    });
   });
 
   $("#quick-run-btn").addEventListener("click", async () => {

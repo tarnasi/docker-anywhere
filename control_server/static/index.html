@@ -66,26 +66,51 @@
 
       <!-- Containers -->
       <section id="view-containers" class="view hidden">
-        <div class="page-title">Containers</div>
-        <div class="card" id="projects-card">
-          <h2>Compose Projects</h2>
-          <div id="projects-actions"></div>
+        <div class="containers-page">
+          <div class="containers-toolbar">
+            <div class="containers-toolbar__stats" id="containers-stats"></div>
+            <div class="containers-toolbar__filters">
+              <input
+                id="containers-search"
+                type="search"
+                placeholder="Search containers…"
+                autocomplete="off"
+                aria-label="Search containers"
+              />
+              <div class="segmented" role="tablist" aria-label="Filter by status">
+                <button type="button" class="segmented__btn active" data-container-filter="all">All</button>
+                <button type="button" class="segmented__btn" data-container-filter="running">Running</button>
+                <button type="button" class="segmented__btn" data-container-filter="exited">Exited</button>
+              </div>
+            </div>
+          </div>
+
+          <section class="containers-section" aria-labelledby="projects-heading">
+            <div class="section-head">
+              <h2 id="projects-heading">Compose Projects</h2>
+              <p class="section-sub">Run stack-wide actions in each project directory</p>
+            </div>
+            <div id="projects-grid" class="projects-grid"></div>
+            <div id="projects-empty" class="section-empty hidden">No compose project paths synced yet.</div>
+          </section>
+
+          <section class="containers-section" aria-labelledby="containers-heading">
+            <div class="section-head">
+              <h2 id="containers-heading">All Containers</h2>
+              <p class="section-sub" id="containers-count-label">—</p>
+            </div>
+            <div class="containers-list-head" aria-hidden="true">
+              <span>Name</span>
+              <span>Image</span>
+              <span>Status</span>
+              <span>Project</span>
+              <span>Actions</span>
+            </div>
+            <div id="containers-list" class="containers-list"></div>
+            <div id="containers-empty" class="section-empty hidden">No containers synced yet.</div>
+            <div id="containers-filtered-empty" class="section-empty hidden">No containers match your filters.</div>
+          </section>
         </div>
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Name</th>
-                <th>Image</th>
-                <th>Status</th>
-                <th>Project Path</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody id="containers-body"></tbody>
-          </table>
-        </div>
-        <div id="containers-empty" class="empty-state hidden">No containers synced yet</div>
       </section>
 
       <!-- Images -->
@@ -199,6 +224,6 @@
     </nav>
   </div>
 
-  <script src="/static/app.js?v=3"></script>
+  <script src="/static/app.js?v=4"></script>
 </body>
 </html>
