@@ -1,0 +1,5 @@
+# Control server secrets + local database
+.env
+!.env.example
+!.env.test
+data/

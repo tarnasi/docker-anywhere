@@ -1,0 +1,57 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+.eggs/
+dist/
+build/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# Environment / secrets (keep examples)
+.env
+.env.*
+!.env.example
+!.env.test
+agent/.env
+agent/.env.prod-*
+control_server/.env
+
+# SQLite / local data
+control_server/data/
+*.db
+*.sqlite3
+
+# PM2 (local process files)
+.pm2/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Cursor
+.cursor/
+
+# Generated docs (optional local output)
+docs/*.pdf

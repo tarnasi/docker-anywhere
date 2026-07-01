@@ -1,0 +1,5 @@
+# Agent-local secrets (examples stay in git)
+.env
+.env.prod-*
+!.env.example
+!.env.test
