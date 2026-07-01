@@ -66,7 +66,46 @@ Set in `control_server/.env`:
 | `UI_SECRET` | Browser login token |
 | `DATABASE_PATH` | Optional, default `./data/docker-anywhere.db` |
 
-### 3. Run with systemd
+### 3. Run with PM2 (recommended for devdiaries.work)
+
+Install PM2 if needed:
+
+```bash
+npm install -g pm2
+```
+
+From the project root:
+
+```bash
+cd /home/projects/domain/docker-anywhere   # your path
+uv sync
+chmod +x scripts/pm2-start-control.sh
+mkdir -p logs
+
+pm2 start ecosystem.config.cjs
+pm2 status
+pm2 logs docker-anywhere-control --lines 50
+```
+
+Useful PM2 commands:
+
+```bash
+pm2 restart docker-anywhere-control
+pm2 stop docker-anywhere-control
+pm2 delete docker-anywhere-control
+pm2 save                    # remember process list
+pm2 startup                 # print command to auto-start on reboot
+```
+
+After `pm2 startup`, run the command it prints (usually with `sudo`).
+
+Verify locally:
+
+```bash
+curl http://127.0.0.1:8000/health
+```
+
+### 3b. Run with systemd (alternative)
 
 Create `/etc/systemd/system/docker-anywhere-control.service`:
 
@@ -103,11 +142,13 @@ server {
 }
 ```
 
-Enable SSL with certbot, then:
+Enable SSL with certbot, then (if using systemd):
 
 ```bash
 sudo systemctl enable --now docker-anywhere-control
 ```
+
+If using PM2, nginx is enough — PM2 keeps the app running.
 
 ## Deploy agent (private production server)
 
