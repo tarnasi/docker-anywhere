@@ -3,3 +3,4 @@
 !.env.example
 !.env.test
 data/
+__pycache__/

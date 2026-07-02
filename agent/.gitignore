@@ -3,3 +3,4 @@
 .env.prod-*
 !.env.example
 !.env.test
+__pycache__/
