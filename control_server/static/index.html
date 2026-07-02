@@ -3,83 +3,160 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <meta name="theme-color" content="#0f1419" />
+  <meta name="theme-color" content="#0a0a0a" />
+  <meta name="color-scheme" content="dark" />
   <title>Docker Anywhere</title>
-  <link rel="stylesheet" href="/static/styles.css" />
+  <link rel="stylesheet" href="/static/styles.css?v=2" />
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
       corePlugins: { preflight: false },
+      theme: {
+        extend: {
+          colors: {
+            da: {
+              bg: "#0A0A0A",
+              surface: "#1A1A1A",
+              border: "#252525",
+              text: "#F1F1F1",
+              muted: "#A3A3A3",
+              accent: "#3B82F6",
+            },
+          },
+          fontFamily: {
+            sans: ["Inter", "system-ui", "-apple-system", "BlinkMacSystemFont", "Segoe UI", "Roboto", "sans-serif"],
+          },
+        },
+      },
     };
   </script>
 </head>
-<body>
-  <!-- Login -->
-  <div id="login-screen">
+<body class="bg-[#0A0A0A] text-[#F1F1F1] antialiased">
+
+  <!-- ── Login ─────────────────────────────────────────────────────────── -->
+  <div id="login-screen" role="main" aria-label="Sign in">
     <div class="login-card">
-      <h1><span class="logo-dot"></span>Docker Anywhere</h1>
-      <p>Remote Docker control for your private server</p>
+      <h1><span class="logo-dot" aria-hidden="true"></span>Docker Anywhere</h1>
+      <p>Remote Docker control for your private servers</p>
       <label for="ui-token">UI Access Token</label>
       <input id="ui-token" type="password" placeholder="Enter UI_SECRET" autocomplete="off" />
-      <button class="btn btn-primary" style="width:100%;margin-top:.5rem" id="login-btn">Connect</button>
-      <p id="login-error" class="alert alert-error hidden" style="margin-top:1rem;margin-bottom:0"></p>
+      <button class="btn btn-primary btn-lg" id="login-btn" type="button">Connect</button>
+      <p id="login-error" class="alert alert-error hidden" role="alert"></p>
     </div>
   </div>
 
-  <!-- App -->
+  <!-- ── App ───────────────────────────────────────────────────────────── -->
   <div id="app" class="hidden">
-    <header>
+
+    <!-- Header -->
+    <header class="app-header" role="banner">
       <h1 id="page-heading">Dashboard</h1>
       <div class="header-controls">
-        <select id="agent-select" class="agent-select" aria-label="Select agent">
-          <option value="">No agents connected</option>
-        </select>
-        <span id="agent-status" class="status-pill offline">Offline</span>
+        <div class="agent-select-wrap">
+          <select id="agent-select" class="agent-select" aria-label="Select agent">
+            <option value="">No agents connected</option>
+          </select>
+        </div>
+        <span id="agent-status" class="status-pill offline" role="status" aria-live="polite">
+          <span class="status-dot" aria-hidden="true"></span>
+          <span id="agent-status-label">Offline</span>
+        </span>
       </div>
     </header>
 
-    <main>
-      <!-- Dashboard -->
-      <section id="view-dashboard" class="view">
-        <div class="stats-grid">
-          <div class="stat-card"><div class="label">Containers</div><div class="value" id="stat-containers">—</div></div>
-          <div class="stat-card"><div class="label">Images</div><div class="value" id="stat-images">—</div></div>
-          <div class="stat-card"><div class="label">Networks</div><div class="value" id="stat-networks">—</div></div>
-          <div class="stat-card"><div class="label">Active Order</div><div class="value" id="stat-order">—</div></div>
+    <main class="app-main" role="main">
+
+      <!-- ── Dashboard ───────────────────────────────────────────────── -->
+      <section id="view-dashboard" class="view" aria-label="Dashboard">
+
+        <!-- Stats -->
+        <div class="stats-grid" role="group" aria-label="Resource statistics">
+          <article class="stat-card">
+            <div class="stat-card-header">
+              <span class="label">Containers</span>
+              <span class="stat-icon stat-icon--blue" aria-hidden="true">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+              </span>
+            </div>
+            <div class="value" id="stat-containers" aria-live="polite">—</div>
+          </article>
+          <article class="stat-card">
+            <div class="stat-card-header">
+              <span class="label">Images</span>
+              <span class="stat-icon stat-icon--purple" aria-hidden="true">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+              </span>
+            </div>
+            <div class="value" id="stat-images" aria-live="polite">—</div>
+          </article>
+          <article class="stat-card">
+            <div class="stat-card-header">
+              <span class="label">Networks</span>
+              <span class="stat-icon stat-icon--green" aria-hidden="true">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="5" r="3"/><circle cx="5" cy="19" r="3"/><circle cx="19" cy="19" r="3"/><path d="M12 8v4M8.5 17.5l2.5-3M15 14.5l2.5 3"/></svg>
+              </span>
+            </div>
+            <div class="value" id="stat-networks" aria-live="polite">—</div>
+          </article>
+          <article class="stat-card">
+            <div class="stat-card-header">
+              <span class="label">Active Order</span>
+              <span class="stat-icon stat-icon--amber" aria-hidden="true">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+              </span>
+            </div>
+            <div class="value value--text" id="stat-order" aria-live="polite">—</div>
+          </article>
         </div>
-        <div class="card">
+
+        <!-- Server Status -->
+        <article class="card">
           <h2>Server Status</h2>
-          <p style="font-size:.85rem;color:var(--muted)">Agent ID: <span id="dashboard-agent-id" class="mono">—</span></p>
-          <p style="font-size:.85rem;color:var(--muted);margin-top:.35rem">Last seen: <span id="last-poll">—</span></p>
-          <p style="font-size:.85rem;color:var(--muted);margin-top:.35rem">Last inventory sync: <span id="last-sync">—</span></p>
-        </div>
-        <div class="card">
+          <dl class="status-rows">
+            <div class="status-row">
+              <dt>Agent ID</dt>
+              <dd id="dashboard-agent-id" class="mono">—</dd>
+            </div>
+            <div class="status-row">
+              <dt>Last seen</dt>
+              <dd id="last-poll">—</dd>
+            </div>
+            <div class="status-row">
+              <dt>Last inventory sync</dt>
+              <dd id="last-sync">—</dd>
+            </div>
+          </dl>
+        </article>
+
+        <!-- Compose Project -->
+        <article class="card">
           <h2>Compose Project</h2>
           <label for="project-select">Project directory</label>
-          <select id="project-select"></select>
-          <div class="btn-row" style="margin-top:.5rem">
-            <button class="btn btn-primary btn-sm" data-compose-action="compose_project_up">Up -d</button>
-            <button class="btn btn-primary btn-sm" data-compose-action="compose_project_restart">Restart</button>
-            <button class="btn btn-danger btn-sm" data-compose-action="compose_project_down_rmi">Down --rmi local</button>
-            <button class="btn btn-primary btn-sm" data-compose-action="compose_project_up_force">Up --force-recreate</button>
-            <button class="btn btn-primary btn-sm" data-compose-action="compose_project_build_nocache">Build --no-cache</button>
+          <select id="project-select" aria-label="Compose project directory"></select>
+          <div class="btn-row" role="group" aria-label="Compose actions">
+            <button type="button" class="btn btn-primary btn-sm" data-compose-action="compose_project_up">Up -d</button>
+            <button type="button" class="btn btn-secondary btn-sm" data-compose-action="compose_project_restart">Restart</button>
+            <button type="button" class="btn btn-danger btn-sm" data-compose-action="compose_project_down_rmi">Down --rmi local</button>
+            <button type="button" class="btn btn-secondary btn-sm" data-compose-action="compose_project_up_force">Up --force-recreate</button>
+            <button type="button" class="btn btn-secondary btn-sm" data-compose-action="compose_project_build_nocache">Build --no-cache</button>
           </div>
-          <p id="compose-msg" class="alert alert-info hidden" style="margin-top:.75rem;margin-bottom:0"></p>
-        </div>
-        <div class="card">
+          <p id="compose-msg" class="alert alert-info hidden" role="status"></p>
+        </article>
+
+        <!-- Quick Execute -->
+        <article class="card">
           <h2>Quick Execute</h2>
-          <label>Command template</label>
-          <select id="quick-template"></select>
-          <button class="btn btn-primary" id="quick-run-btn" style="width:100%">Run Command</button>
-          <p id="quick-msg" class="alert alert-info hidden" style="margin-top:.75rem;margin-bottom:0"></p>
-        </div>
+          <label for="quick-template">Command template</label>
+          <select id="quick-template" aria-label="Command template"></select>
+          <button type="button" class="btn btn-primary btn-lg" id="quick-run-btn">Run Command</button>
+          <p id="quick-msg" class="alert alert-info hidden" role="status"></p>
+        </article>
       </section>
 
-      <!-- Containers -->
-      <section id="view-containers" class="view hidden">
-        <div class="space-y-3 rounded-xl border border-slate-700 bg-slate-900 p-3 sm:p-4">
+      <!-- ── Containers ────────────────────────────────────────────────── -->
+      <section id="view-containers" class="view hidden" aria-label="Containers">
+        <div class="da-panel space-y-3">
 
-          <!-- Top toolbar: search left, filters center, stats right -->
           <div class="flex flex-col gap-3 lg:flex-row lg:items-center">
             <div class="relative flex-1 min-w-0">
               <input
@@ -88,131 +165,112 @@
                 placeholder="Search containers…"
                 autocomplete="off"
                 aria-label="Search containers"
-                class="w-full rounded-xl border border-slate-700 bg-slate-800 py-2.5 pl-10 pr-4 text-sm text-slate-200 placeholder-slate-500 transition duration-150 focus:border-blue-500/50 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                class="w-full rounded-lg border border-[#252525] bg-[#111111] py-2.5 pl-10 pr-4 text-sm text-[#F1F1F1] placeholder-[#737373] transition duration-200 focus:border-[#3B82F6] focus:outline-none focus:ring-2 focus:ring-[#3B82F6]/20"
               />
-              <svg class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+              <svg class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#737373]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
             </div>
-            <div class="flex items-center justify-center gap-1 rounded-xl border border-slate-700 bg-slate-800 p-1">
-              <button type="button" data-c-filter="all" class="c-filter-active rounded-lg px-3 py-1.5 text-xs font-semibold transition duration-150">All</button>
-              <button type="button" data-c-filter="running" class="rounded-lg px-3 py-1.5 text-xs font-semibold transition duration-150">Running</button>
-              <button type="button" data-c-filter="exited" class="rounded-lg px-3 py-1.5 text-xs font-semibold transition duration-150">Exited</button>
+            <div class="flex items-center justify-center gap-1 rounded-lg border border-[#252525] bg-[#111111] p-1">
+              <button type="button" data-c-filter="all" class="c-filter-active rounded-md px-3 py-1.5 text-xs font-medium transition duration-200">All</button>
+              <button type="button" data-c-filter="running" class="rounded-md px-3 py-1.5 text-xs font-medium transition duration-200">Running</button>
+              <button type="button" data-c-filter="exited" class="rounded-md px-3 py-1.5 text-xs font-medium transition duration-200">Exited</button>
             </div>
           </div>
 
-          <!-- Bulk actions bar -->
-          <div id="containers-bulk-bar" class="hidden flex flex-wrap items-center gap-3 rounded-xl border border-blue-500/30 bg-blue-500/5 px-4 py-3">
-            <span id="containers-bulk-count" class="text-sm font-medium text-slate-200">0 selected</span>
+          <div id="containers-bulk-bar" class="hidden flex flex-wrap items-center gap-3 rounded-lg border border-[#3B82F6]/25 bg-[#3B82F6]/5 px-4 py-3">
+            <span id="containers-bulk-count" class="text-sm font-medium text-[#F1F1F1]">0 selected</span>
             <div class="relative ml-auto flex items-center gap-2">
               <input type="hidden" id="bulk-action-pick" value="restart" />
               <div class="relative">
-                <button type="button" id="bulk-dropdown-btn" class="flex items-center gap-2 rounded-lg border border-slate-600 bg-slate-800 px-3 py-2 text-sm font-medium text-slate-200 transition duration-150 hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/40">
+                <button type="button" id="bulk-dropdown-btn" class="flex items-center gap-2 rounded-lg border border-[#252525] bg-[#1A1A1A] px-3 py-2 text-sm font-medium text-[#F1F1F1] transition duration-200 hover:bg-[#252525] focus:outline-none focus:ring-2 focus:ring-[#3B82F6]/30">
                   <span id="bulk-dropdown-label">Restart</span>
-                  <svg class="h-4 w-4 shrink-0 text-slate-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
+                  <svg class="h-4 w-4 shrink-0 text-[#737373]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
                 </button>
-                <div id="bulk-dropdown-menu" class="absolute right-0 top-full z-50 mt-1.5 hidden min-w-[160px] overflow-hidden rounded-xl border border-slate-600 bg-slate-800 py-1 shadow-2xl ring-1 ring-slate-600/80">
-                  <button type="button" data-bulk-action="start" class="bulk-menu-item block w-full border-0 bg-slate-800 px-4 py-2.5 text-left text-sm font-medium text-slate-200 transition duration-150 hover:bg-slate-700">Start</button>
-                  <button type="button" data-bulk-action="stop" class="bulk-menu-item block w-full border-0 bg-slate-800 px-4 py-2.5 text-left text-sm font-medium text-slate-200 transition duration-150 hover:bg-slate-700">Stop</button>
-                  <button type="button" data-bulk-action="restart" class="bulk-menu-item bulk-menu-item--active block w-full border-0 bg-slate-700 px-4 py-2.5 text-left text-sm font-medium text-white transition duration-150 hover:bg-slate-600">Restart</button>
-                  <button type="button" data-bulk-action="build" class="bulk-menu-item block w-full border-0 bg-slate-800 px-4 py-2.5 text-left text-sm font-medium text-slate-200 transition duration-150 hover:bg-slate-700">Build</button>
-                  <button type="button" data-bulk-action="delete" class="bulk-menu-item block w-full border-0 bg-slate-800 px-4 py-2.5 text-left text-sm font-medium text-red-400 transition duration-150 hover:bg-red-500/10">Delete</button>
+                <div id="bulk-dropdown-menu" class="absolute right-0 top-full z-50 mt-1.5 hidden min-w-[160px] overflow-hidden rounded-lg border border-[#252525] bg-[#1A1A1A] py-1 shadow-lg">
+                  <button type="button" data-bulk-action="start" class="bulk-menu-item block w-full border-0 bg-transparent px-4 py-2.5 text-left text-sm font-medium text-[#F1F1F1] transition duration-200 hover:bg-[#252525]">Start</button>
+                  <button type="button" data-bulk-action="stop" class="bulk-menu-item block w-full border-0 bg-transparent px-4 py-2.5 text-left text-sm font-medium text-[#F1F1F1] transition duration-200 hover:bg-[#252525]">Stop</button>
+                  <button type="button" data-bulk-action="restart" class="bulk-menu-item bulk-menu-item--active block w-full border-0 bg-[#252525] px-4 py-2.5 text-left text-sm font-medium text-white transition duration-200 hover:bg-[#333]">Restart</button>
+                  <button type="button" data-bulk-action="build" class="bulk-menu-item block w-full border-0 bg-transparent px-4 py-2.5 text-left text-sm font-medium text-[#F1F1F1] transition duration-200 hover:bg-[#252525]">Build</button>
+                  <button type="button" data-bulk-action="delete" class="bulk-menu-item block w-full border-0 bg-transparent px-4 py-2.5 text-left text-sm font-medium text-[#EF4444] transition duration-200 hover:bg-[#EF4444]/10">Delete</button>
                 </div>
               </div>
-              <button type="button" id="bulk-execute" class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition duration-150 hover:bg-blue-500 active:scale-[0.98]">Execute</button>
+              <button type="button" id="bulk-execute" class="rounded-lg bg-[#3B82F6] px-4 py-2 text-sm font-semibold text-white transition duration-200 hover:bg-[#2563EB] active:scale-[0.98]">Execute</button>
             </div>
           </div>
 
-          <!-- Table -->
-          <div id="containers-table-wrap" class="overflow-x-auto overflow-y-auto rounded-xl border border-slate-700" style="max-height: calc(100dvh - 16rem);">
+          <div id="containers-table-wrap" class="overflow-x-auto overflow-y-auto rounded-lg border border-[#252525]" style="max-height: calc(100dvh - 16rem);">
             <table class="w-full min-w-[800px] border-collapse text-sm">
               <thead>
-                <tr class="border-b border-slate-700 bg-slate-800">
-                  <th class="sticky left-0 top-0 z-20 w-10 bg-slate-800 px-3 py-3 shadow-[2px_0_6px_-2px_rgba(0,0,0,0.4)]">
-                    <input type="checkbox" id="containers-select-all" class="h-4 w-4 rounded border-slate-600 bg-slate-900 text-blue-500 focus:ring-blue-500/40" aria-label="Select all" />
+                <tr class="border-b border-[#252525] bg-[#111111]">
+                  <th class="sticky left-0 top-0 z-20 w-10 bg-[#111111] px-3 py-3">
+                    <input type="checkbox" id="containers-select-all" class="h-4 w-4 rounded border-[#252525] bg-[#0A0A0A] text-[#3B82F6] focus:ring-[#3B82F6]/30" aria-label="Select all" />
                   </th>
-                  <th class="sticky left-10 top-0 z-20 bg-slate-800 px-3 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-400 shadow-[2px_0_6px_-2px_rgba(0,0,0,0.4)]">Name</th>
-                  <th class="sticky top-0 z-10 bg-slate-800 px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">Image</th>
-                  <th class="sticky top-0 z-10 bg-slate-800 px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">Status</th>
-                  <th class="sticky top-0 z-10 bg-slate-800 px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">Project</th>
-                  <th class="sticky right-0 top-0 z-20 bg-slate-800 px-3 py-3 text-right text-xs font-semibold uppercase tracking-wider text-slate-400 shadow-[-2px_0_6px_-2px_rgba(0,0,0,0.4)]">Actions</th>
+                  <th class="sticky left-10 top-0 z-20 bg-[#111111] px-3 py-3 text-left text-xs font-medium uppercase tracking-wider text-[#737373]">Name</th>
+                  <th class="sticky top-0 z-10 bg-[#111111] px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-[#737373]">Image</th>
+                  <th class="sticky top-0 z-10 bg-[#111111] px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-[#737373]">Status</th>
+                  <th class="sticky top-0 z-10 bg-[#111111] px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-[#737373]">Project</th>
+                  <th class="sticky right-0 top-0 z-20 bg-[#111111] px-3 py-3 text-right text-xs font-medium uppercase tracking-wider text-[#737373]">Actions</th>
                 </tr>
               </thead>
               <tbody id="containers-body"></tbody>
             </table>
           </div>
 
-          <div id="containers-empty" class="hidden rounded-xl border border-dashed border-slate-700 bg-slate-800/50 py-12 text-center text-sm text-slate-400">No containers synced yet.</div>
-          <div id="containers-filtered-empty" class="hidden rounded-xl border border-dashed border-slate-700 bg-slate-800/50 py-12 text-center text-sm text-slate-400">No containers match your filters.</div>
+          <div id="containers-empty" class="hidden rounded-lg border border-dashed border-[#252525] bg-[#111111]/50 py-12 text-center text-sm text-[#737373]">No containers synced yet.</div>
+          <div id="containers-filtered-empty" class="hidden rounded-lg border border-dashed border-[#252525] bg-[#111111]/50 py-12 text-center text-sm text-[#737373]">No containers match your filters.</div>
         </div>
 
-        <!-- Slide-over panel -->
+        <!-- Slide-over -->
         <div id="container-slideover" class="fixed inset-0 z-50 hidden">
-          <div id="container-slideover-backdrop" class="absolute inset-0 bg-black/60 transition duration-150"></div>
-          <div id="container-slideover-panel" class="absolute right-0 top-0 flex h-full w-[420px] max-w-full translate-x-full flex-col border-l border-slate-700 bg-slate-800 shadow-2xl transition-transform duration-150">
-            <div class="flex items-center justify-between border-b border-slate-700 px-5 py-4">
-              <h3 id="slideover-title" class="text-base font-semibold text-slate-200">Action</h3>
-              <button type="button" id="slideover-close" class="flex h-9 w-9 items-center justify-center rounded-lg text-slate-400 transition duration-150 hover:bg-slate-700 hover:text-slate-200" aria-label="Close">
+          <div id="container-slideover-backdrop" class="absolute inset-0 bg-black/70 backdrop-blur-sm transition duration-200"></div>
+          <div id="container-slideover-panel" class="absolute right-0 top-0 flex h-full w-[420px] max-w-full translate-x-full flex-col border-l border-[#252525] bg-[#1A1A1A] shadow-2xl transition-transform duration-200">
+            <div class="flex items-center justify-between border-b border-[#252525] px-5 py-4">
+              <h3 id="slideover-title" class="text-base font-semibold text-[#F1F1F1]">Action</h3>
+              <button type="button" id="slideover-close" class="flex h-9 w-9 items-center justify-center rounded-lg text-[#737373] transition duration-200 hover:bg-[#252525] hover:text-[#F1F1F1]" aria-label="Close">
                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
               </button>
             </div>
-            <div class="border-b border-slate-700 px-5 py-3">
-              <pre id="slideover-command" class="whitespace-pre-wrap rounded-lg bg-slate-900 px-3 py-2 font-mono text-xs text-slate-300 ring-1 ring-slate-700"></pre>
+            <div class="border-b border-[#252525] px-5 py-3">
+              <pre id="slideover-command" class="whitespace-pre-wrap rounded-lg bg-[#0A0A0A] px-3 py-2 font-mono text-xs text-[#A3A3A3] ring-1 ring-[#252525]"></pre>
             </div>
             <div id="slideover-logs" class="flex-1 overflow-y-auto px-5 py-4 space-y-1"></div>
-            <div class="flex gap-2 border-t border-slate-700 px-5 py-4">
-              <button type="button" id="slideover-copy" class="flex flex-1 items-center justify-center gap-2 rounded-lg border border-slate-700 bg-slate-900 px-4 py-2.5 text-sm font-medium text-slate-200 transition duration-150 hover:bg-slate-700">
+            <div class="flex gap-2 border-t border-[#252525] px-5 py-4">
+              <button type="button" id="slideover-copy" class="btn btn-secondary flex-1">
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
                 Copy logs
               </button>
-              <button type="button" id="slideover-close-btn" class="flex-1 rounded-lg bg-slate-700 px-4 py-2.5 text-sm font-medium text-slate-200 transition duration-150 hover:bg-slate-600">Close</button>
+              <button type="button" id="slideover-close-btn" class="btn btn-secondary flex-1">Close</button>
             </div>
           </div>
         </div>
 
-        <!-- Toasts -->
         <div id="container-toasts" class="pointer-events-none fixed right-4 top-4 z-[60] flex w-80 max-w-[calc(100vw-2rem)] flex-col gap-2"></div>
 
         <style>
-          /* Containers-only fixes — global CSS has no button reset (preflight off) */
-          #view-containers .bulk-menu-item {
-            appearance: none;
-            -webkit-appearance: none;
-            cursor: pointer;
-            font-family: inherit;
-          }
-          #view-containers #bulk-dropdown-menu {
-            background-color: #1e293b !important;
-          }
-          #view-containers .bulk-menu-item--active {
-            background-color: #334155 !important;
-            color: #f1f5f9 !important;
-          }
+          #view-containers .bulk-menu-item,
           #view-containers [data-c-filter] {
             appearance: none;
             -webkit-appearance: none;
             cursor: pointer;
             font-family: inherit;
-            border: 1px solid transparent;
           }
+          #view-containers [data-c-filter] { border: 1px solid transparent; color: #737373; }
           #view-containers [data-c-filter].c-filter-active {
-            background-color: #334155 !important;
-            color: #f1f5f9 !important;
-            border-color: #475569 !important;
+            background-color: #252525 !important;
+            color: #F1F1F1 !important;
+            border-color: #333 !important;
           }
-          #view-containers [data-c-filter]:not(.c-filter-active) {
-            background-color: #1e293b !important;
-            color: #94a3b8 !important;
-          }
+          #view-containers [data-c-filter]:not(.c-filter-active) { background-color: transparent !important; }
         </style>
       </section>
 
-      <!-- Images -->
-      <section id="view-images" class="view hidden">
-        <div class="page-title">Images</div>
-        <div class="card">
+      <!-- ── Images ──────────────────────────────────────────────────── -->
+      <section id="view-images" class="view hidden" aria-label="Images">
+        <article class="card">
           <h2>Pull Image</h2>
+          <label for="pull-image-input">Image reference</label>
           <input id="pull-image-input" placeholder="nginx:latest" />
-          <button class="btn btn-primary" id="pull-image-btn">Pull</button>
-        </div>
+          <button type="button" class="btn btn-primary" id="pull-image-btn">Pull Image</button>
+        </article>
         <div class="table-wrap">
           <table>
             <thead>
@@ -224,19 +282,20 @@
         <div id="images-empty" class="empty-state hidden">No images synced yet</div>
       </section>
 
-      <!-- Networks -->
-      <section id="view-networks" class="view hidden">
-        <div class="page-title">Networks</div>
-        <div class="card">
+      <!-- ── Networks ────────────────────────────────────────────────── -->
+      <section id="view-networks" class="view hidden" aria-label="Networks">
+        <article class="card">
           <h2>Create Network</h2>
+          <label for="network-name-input">Network name</label>
           <input id="network-name-input" placeholder="my-network" />
+          <label for="network-driver-input">Driver</label>
           <select id="network-driver-input">
             <option value="bridge">bridge</option>
             <option value="overlay">overlay</option>
             <option value="host">host</option>
           </select>
-          <button class="btn btn-primary" id="create-network-btn">Create</button>
-        </div>
+          <button type="button" class="btn btn-primary" id="create-network-btn">Create Network</button>
+        </article>
         <div class="table-wrap">
           <table>
             <thead>
@@ -248,13 +307,12 @@
         <div id="networks-empty" class="empty-state hidden">No networks synced yet</div>
       </section>
 
-      <!-- Orders -->
-      <section id="view-orders" class="view hidden">
-        <div class="page-title">Execute Orders</div>
-        <div id="active-order-card" class="card hidden">
+      <!-- ── Orders ──────────────────────────────────────────────────── -->
+      <section id="view-orders" class="view hidden" aria-label="Orders">
+        <article id="active-order-card" class="card hidden">
           <h2>Active Order</h2>
-          <p id="active-order-text"></p>
-        </div>
+          <p id="active-order-text" class="text-[#A3A3A3] text-sm"></p>
+        </article>
         <div class="table-wrap">
           <table>
             <thead>
@@ -265,18 +323,22 @@
         </div>
       </section>
 
-      <!-- Commands CRUD -->
-      <section id="view-commands" class="view hidden">
-        <div class="page-title">Command Templates</div>
-        <div class="card">
+      <!-- ── Commands ────────────────────────────────────────────────── -->
+      <section id="view-commands" class="view hidden" aria-label="Command templates">
+        <article class="card">
           <h2>New Template</h2>
-          <input id="tpl-name" placeholder="Name" />
+          <label for="tpl-name">Name</label>
+          <input id="tpl-name" placeholder="Template name" />
+          <label for="tpl-action">Action</label>
           <select id="tpl-action"></select>
-          <input id="tpl-service" placeholder="Service (optional)" />
+          <label for="tpl-service">Service (optional)</label>
+          <input id="tpl-service" placeholder="Service name" />
+          <label for="tpl-category">Category</label>
           <input id="tpl-category" placeholder="Category" value="docker" />
-          <textarea id="tpl-desc" rows="2" placeholder="Description"></textarea>
-          <button class="btn btn-primary" id="tpl-create-btn">Save Template</button>
-        </div>
+          <label for="tpl-desc">Description</label>
+          <textarea id="tpl-desc" rows="2" placeholder="What does this command do?"></textarea>
+          <button type="button" class="btn btn-primary" id="tpl-create-btn">Save Template</button>
+        </article>
         <div class="table-wrap">
           <table>
             <thead>
@@ -288,35 +350,36 @@
       </section>
     </main>
 
-    <nav class="bottom-nav">
-      <button data-view="dashboard" class="active" aria-label="Dashboard">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+    <!-- Bottom navigation -->
+    <nav class="bottom-nav" aria-label="Main navigation">
+      <button type="button" data-view="dashboard" class="active" aria-label="Dashboard" aria-current="page">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
         Home
       </button>
-      <button data-view="containers" aria-label="Containers">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+      <button type="button" data-view="containers" aria-label="Containers">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
         Containers
       </button>
-      <button data-view="images" aria-label="Images">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+      <button type="button" data-view="images" aria-label="Images">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
         Images
       </button>
-      <button data-view="networks" aria-label="Networks">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="5" r="3"/><circle cx="5" cy="19" r="3"/><circle cx="19" cy="19" r="3"/><path d="M12 8v4M8.5 17.5l2.5-3M15 14.5l2.5 3"/></svg>
+      <button type="button" data-view="networks" aria-label="Networks">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="5" r="3"/><circle cx="5" cy="19" r="3"/><circle cx="19" cy="19" r="3"/><path d="M12 8v4M8.5 17.5l2.5-3M15 14.5l2.5 3"/></svg>
         Networks
       </button>
-      <button data-view="orders" aria-label="Orders">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+      <button type="button" data-view="orders" aria-label="Orders">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
         Orders
       </button>
-      <button data-view="commands" aria-label="Commands">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"/></svg>
+      <button type="button" data-view="commands" aria-label="Commands">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"/></svg>
         Commands
       </button>
     </nav>
   </div>
 
-  <script src="/static/app.js?v=11"></script>
-  <script src="/static/containers.js?v=4"></script>
+  <script src="/static/app.js?v=12"></script>
+  <script src="/static/containers.js?v=5"></script>
 </body>
 </html>

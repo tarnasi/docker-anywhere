@@ -46,19 +46,20 @@ function agentOptionLabel(agent) {
 
 function updateAgentStatusPill() {
   const pill = $("#agent-status");
+  const label = $("#agent-status-label");
   if (!pill) return;
   if (!state.agentId) {
-    pill.textContent = "No agent";
+    if (label) label.textContent = "No agent";
     pill.className = "status-pill offline";
     return;
   }
   const agent = state.agents.find(a => a.agent_id === state.agentId);
   if (agent) {
     const online = isAgentOnline(agent);
-    pill.textContent = online ? "Online" : "Offline";
+    if (label) label.textContent = online ? "Online" : "Offline";
     pill.className = `status-pill ${online ? "online" : "offline"}`;
   } else {
-    pill.textContent = "Offline";
+    if (label) label.textContent = "Offline";
     pill.className = "status-pill offline";
   }
 }
@@ -163,7 +164,10 @@ function showView(name) {
   $$(".view").forEach(v => v.classList.add("hidden"));
   $(`#view-${name}`)?.classList.remove("hidden");
   $$("nav.bottom-nav button").forEach(b => {
-    b.classList.toggle("active", b.dataset.view === name);
+    const active = b.dataset.view === name;
+    b.classList.toggle("active", active);
+    if (active) b.setAttribute("aria-current", "page");
+    else b.removeAttribute("aria-current");
   });
   const titles = {
     dashboard: "Dashboard", containers: "Containers", images: "Images",
