@@ -31,6 +31,7 @@ _COMPOSE_PATH_ACTIONS = {
     ActionType.COMPOSE_PROJECT_DOWN_RMI,
     ActionType.COMPOSE_PROJECT_UP_FORCE,
     ActionType.COMPOSE_PROJECT_BUILD_NOCACHE,
+    ActionType.COMPOSE_PROJECT_RESTART,
 }
 
 _CONTAINER_ACTIONS = {
@@ -113,6 +114,9 @@ def _build_command(cmd: CommandPayload) -> list[str]:
     if action == ActionType.DOCKER_COMPOSE_DOWN:
         return ["__compose_down_all__"]
 
+    if action == ActionType.DOCKER_COMPOSE_RESTART:
+        return ["__compose_restart_all__"]
+
     if action == ActionType.COMPOSE_PROJECT_UP:
         path = _validate_project_path(cmd)
         return ["__compose_in_path__", str(path), "up", "-d"]
@@ -128,6 +132,10 @@ def _build_command(cmd: CommandPayload) -> list[str]:
     if action == ActionType.COMPOSE_PROJECT_BUILD_NOCACHE:
         path = _validate_project_path(cmd)
         return ["__compose_in_path__", str(path), "build", "--no-cache"]
+
+    if action == ActionType.COMPOSE_PROJECT_RESTART:
+        path = _validate_project_path(cmd)
+        return ["__compose_in_path__", str(path), "restart"]
 
     if action == ActionType.CONTAINERS_STOP_ALL:
         return ["__stop_all_containers__"]
@@ -355,6 +363,11 @@ async def execute_command(cmd: CommandPayload) -> ExecutionResult:
         elif argv == ["__compose_down_all__"]:
             stdout, stderr, returncode = await _run_compose_on_projects(
                 await _get_compose_projects(), ["down"]
+            )
+
+        elif argv == ["__compose_restart_all__"]:
+            stdout, stderr, returncode = await _run_compose_on_projects(
+                await _get_compose_projects(), ["restart"]
             )
 
         elif len(argv) >= 2 and argv[0] == "__compose_in_path__":
