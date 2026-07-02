@@ -1,23 +1,27 @@
 const ACTIONS = [
   "docker_restart", "docker_rebuild", "docker_logs", "docker_status",
   "docker_stop", "docker_start", "docker_compose_up", "docker_compose_down",
+  "docker_compose_restart",
   "compose_project_up", "compose_project_down_rmi", "compose_project_up_force",
-  "compose_project_build_nocache",
+  "compose_project_build_nocache", "compose_project_restart",
   "containers_stop_all", "containers_remove_all", "image_pull", "image_remove",
   "network_create", "network_remove", "inventory_sync", "run_script", "server_reboot",
 ];
 
 const COMPOSE_LABELS = {
   compose_project_up: "docker compose up -d",
+  compose_project_restart: "docker compose restart",
   compose_project_down_rmi: "docker compose down --rmi local",
   compose_project_up_force: "docker compose up -d --force-recreate",
   compose_project_build_nocache: "docker compose build --no-cache",
+  docker_compose_restart: "docker compose restart",
 };
 
 const state = {
   token: localStorage.getItem("ui_token") || "",
   agentId: localStorage.getItem("agent_id") || "",
   agents: [],
+  templates: [],
   view: "dashboard",
   refreshTimer: null,
 };
@@ -93,16 +97,11 @@ async function loadAgents() {
 }
 
 function switchAgent(agentId) {
-  if (!agentId || agentId === state.agentId) return;
-  state.agentId = agentId;
-  localStorage.setItem("agent_id", agentId);
+  if (agentId === state.agentId) return;
+  state.agentId = agentId || "";
+  if (state.agentId) localStorage.setItem("agent_id", state.agentId);
+  else localStorage.removeItem("agent_id");
   updateAgentStatusPill();
-  const titles = {
-    dashboard: "Dashboard", containers: "Containers", images: "Images",
-    networks: "Networks", orders: "Orders", commands: "Commands",
-  };
-  const title = titles[state.view] || "Docker Anywhere";
-  $("#page-heading").textContent = `${title} · ${state.agentId}`;
   refreshCurrentView();
 }
 
@@ -171,7 +170,7 @@ function showView(name) {
     networks: "Networks", orders: "Orders", commands: "Commands",
   };
   const title = titles[name] || "Docker Anywhere";
-  $("#page-heading").textContent = state.agentId ? `${title} · ${state.agentId}` : title;
+  $("#page-heading").textContent = title;
   refreshCurrentView();
 }
 
@@ -259,6 +258,33 @@ async function refreshDashboard() {
   const paths = uniqueProjectPaths(containers);
   const current = $("#project-select")?.value;
   populateProjectSelect(paths, paths.includes(current) ? current : paths[0]);
+
+  await loadCommandTemplates();
+}
+
+function populateQuickTemplateSelect(templates) {
+  const quickSel = $("#quick-template");
+  if (!quickSel) return;
+
+  if (!templates.length) {
+    quickSel.innerHTML = `<option value="">No command templates — create one in Commands</option>`;
+    quickSel.disabled = true;
+    $("#quick-run-btn").disabled = true;
+    return;
+  }
+
+  quickSel.disabled = false;
+  $("#quick-run-btn").disabled = false;
+  quickSel.innerHTML = templates.map(t =>
+    `<option value="${t.id}">${escapeHtml(t.name)} (${escapeHtml(t.action)})</option>`
+  ).join("");
+}
+
+async function loadCommandTemplates() {
+  const templates = await api("/api/ui/commands");
+  state.templates = templates;
+  populateQuickTemplateSelect(templates);
+  return templates;
 }
 
 async function refreshContainers() {
@@ -369,7 +395,7 @@ async function refreshOrders() {
 }
 
 async function refreshCommands() {
-  const templates = await api("/api/ui/commands");
+  const templates = await loadCommandTemplates();
   $("#commands-body").innerHTML = templates.map(t => `
     <tr>
       <td>${t.name}</td>
@@ -378,11 +404,6 @@ async function refreshCommands() {
       <td><button class="btn btn-danger btn-sm" data-del-tpl="${t.id}">Delete</button></td>
     </tr>
   `).join("");
-
-  const quickSel = $("#quick-template");
-  quickSel.innerHTML = templates.map(t =>
-    `<option value="${t.id}">${t.name} (${t.action})</option>`
-  ).join("");
 
   tbodyDelHandlers();
 }
@@ -491,9 +512,16 @@ function bindEvents() {
   $("#quick-run-btn").addEventListener("click", async () => {
     const tplId = parseInt($("#quick-template").value, 10);
     const msg = $("#quick-msg");
+    if (!tplId) {
+      msg.textContent = "Select a command template first (or create one in Commands).";
+      msg.className = "alert alert-error";
+      msg.classList.remove("hidden");
+      return;
+    }
     try {
-      await createOrder({ agent_id: state.agentId, template_id: tplId });
+      await createOrder({ template_id: tplId });
       msg.textContent = "Command queued. Agent will execute on next poll.";
+      msg.className = "alert alert-info";
       msg.classList.remove("hidden");
       refreshDashboard();
     } catch (e) {

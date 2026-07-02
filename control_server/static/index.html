@@ -30,7 +30,12 @@
   <div id="app" class="hidden">
     <header>
       <h1 id="page-heading">Dashboard</h1>
-      <span id="agent-status" class="status-pill offline">Offline</span>
+      <div class="header-controls">
+        <select id="agent-select" class="agent-select" aria-label="Select agent">
+          <option value="">No agents connected</option>
+        </select>
+        <span id="agent-status" class="status-pill offline">Offline</span>
+      </div>
     </header>
 
     <main>
@@ -54,6 +59,7 @@
           <select id="project-select"></select>
           <div class="btn-row" style="margin-top:.5rem">
             <button class="btn btn-primary btn-sm" data-compose-action="compose_project_up">Up -d</button>
+            <button class="btn btn-primary btn-sm" data-compose-action="compose_project_restart">Restart</button>
             <button class="btn btn-danger btn-sm" data-compose-action="compose_project_down_rmi">Down --rmi local</button>
             <button class="btn btn-primary btn-sm" data-compose-action="compose_project_up_force">Up --force-recreate</button>
             <button class="btn btn-primary btn-sm" data-compose-action="compose_project_build_nocache">Build --no-cache</button>
@@ -282,13 +288,6 @@
       </section>
     </main>
 
-    <div class="bottom-shell">
-    <div class="agent-bar">
-      <label for="agent-select">Agent</label>
-      <select id="agent-select" aria-label="Select agent">
-        <option value="">No agents connected</option>
-      </select>
-    </div>
     <nav class="bottom-nav">
       <button data-view="dashboard" class="active" aria-label="Dashboard">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
@@ -315,10 +314,9 @@
         Commands
       </button>
     </nav>
-    </div>
   </div>
 
-  <script src="/static/app.js?v=8"></script>
-  <script src="/static/containers.js?v=3"></script>
+  <script src="/static/app.js?v=11"></script>
+  <script src="/static/containers.js?v=4"></script>
 </body>
 </html>

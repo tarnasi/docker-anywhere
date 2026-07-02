@@ -12,7 +12,6 @@
   --danger: #ef4444;
   --radius: 12px;
   --nav-h: 64px;
-  --agent-bar-h: 48px;
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
 }
@@ -68,13 +67,50 @@ header {
   background: rgba(15, 20, 25, .92);
   backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--border);
-  padding: .85rem 1rem;
+  padding: .75rem 1rem;
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: .75rem;
 }
 
-header h1 { font-size: 1.1rem; font-weight: 600; }
+header h1 {
+  font-size: 1.1rem;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.header-controls {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  min-width: 0;
+  flex: 1;
+  justify-content: flex-end;
+}
+
+.agent-select {
+  width: auto;
+  min-width: 0;
+  max-width: min(280px, 62vw);
+  flex: 1;
+  margin: 0;
+  padding: .4rem .65rem;
+  font-size: .82rem;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+}
+
+.agent-select:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+@media (min-width: 640px) {
+  .agent-select { max-width: 340px; }
+}
 
 .status-pill {
   font-size: .75rem;
@@ -90,55 +126,25 @@ header h1 { font-size: 1.1rem; font-weight: 600; }
 main {
   flex: 1;
   padding: 1rem;
-  padding-bottom: calc(var(--nav-h) + var(--agent-bar-h) + var(--safe-bottom) + 1rem);
+  padding-bottom: calc(var(--nav-h) + var(--safe-bottom) + 1rem);
   max-width: 960px;
   margin: 0 auto;
   width: 100%;
 }
 
-.bottom-shell {
+nav.bottom-nav {
   position: fixed;
   bottom: 0;
   left: 0;
   right: 0;
-  z-index: 20;
+  height: calc(var(--nav-h) + var(--safe-bottom));
   padding-bottom: var(--safe-bottom);
   background: var(--surface);
   border-top: 1px solid var(--border);
-}
-
-.agent-bar {
-  height: var(--agent-bar-h);
-  display: flex;
-  align-items: center;
-  gap: .75rem;
-  padding: 0 1rem;
-  background: var(--surface2);
-  border-bottom: 1px solid var(--border);
-}
-
-.agent-bar label {
-  margin: 0;
-  font-size: .72rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: .04em;
-  white-space: nowrap;
-}
-
-.agent-bar select {
-  flex: 1;
-  margin: 0;
-  min-width: 0;
-  font-size: .85rem;
-  padding: .45rem .65rem;
-}
-
-nav.bottom-nav {
-  height: var(--nav-h);
   display: flex;
   justify-content: space-around;
   align-items: center;
+  z-index: 20;
 }
 
 nav.bottom-nav button {

@@ -134,18 +134,22 @@ class Database:
             self._seed_templates(conn)
 
     def _seed_templates(self, conn: sqlite3.Connection) -> None:
-        count = conn.execute("SELECT COUNT(*) FROM command_templates").fetchone()[0]
-        if count > 0:
-            return
         now = _iso()
         defaults = [
             ("Compose Up", ActionType.DOCKER_COMPOSE_UP.value, None, "{}", "Start all compose services", "compose"),
             ("Compose Down", ActionType.DOCKER_COMPOSE_DOWN.value, None, "{}", "Stop and remove compose stack", "compose"),
+            ("Compose Restart", ActionType.DOCKER_COMPOSE_RESTART.value, None, "{}", "Restart all compose services", "compose"),
             ("Stop All Containers", ActionType.CONTAINERS_STOP_ALL.value, None, "{}", "Stop every running container", "containers"),
             ("Remove All Containers", ActionType.CONTAINERS_REMOVE_ALL.value, None, "{}", "Remove all stopped containers", "containers"),
             ("Sync Inventory", ActionType.INVENTORY_SYNC.value, None, "{}", "Refresh containers, images, networks", "system"),
         ]
+        existing = {
+            row[0]
+            for row in conn.execute("SELECT action FROM command_templates").fetchall()
+        }
         for name, action, service, params, desc, cat in defaults:
+            if action in existing:
+                continue
             conn.execute(
                 """
                 INSERT INTO command_templates

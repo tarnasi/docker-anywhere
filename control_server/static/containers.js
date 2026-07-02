@@ -5,6 +5,7 @@
 (function () {
   const COMPOSE_LABELS = {
     compose_project_up: "docker compose up -d",
+    compose_project_restart: "docker compose restart",
     compose_project_down_rmi: "docker compose down --rmi local",
     compose_project_build_nocache: "docker compose build --no-cache",
     docker_start: "docker start",
@@ -113,7 +114,7 @@
     if (!c.project_path) return `<span class="text-slate-500 text-sm">—</span>`;
     return `<div class="flex items-center justify-end gap-2">
       ${iconBtn("compose_project_build_nocache", "Build", "bg-yellow-500/10 text-yellow-400 hover:bg-yellow-500/20", LUCIDE.wrench, c.project_path)}
-      ${iconBtn("compose_project_up", "Restart", "bg-blue-500/10 text-blue-400 hover:bg-blue-500/20", LUCIDE.arrowUp, c.project_path)}
+      ${iconBtn("compose_project_restart", "Restart", "bg-blue-500/10 text-blue-400 hover:bg-blue-500/20", LUCIDE.arrowUp, c.project_path)}
       ${iconBtn("compose_project_down_rmi", "Delete", "bg-red-500/10 text-red-400 hover:bg-red-500/20", LUCIDE.trash2, c.project_path)}
     </div>`;
   }
