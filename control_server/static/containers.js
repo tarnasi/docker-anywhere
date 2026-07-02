@@ -379,8 +379,12 @@
   }
 
   async function refresh() {
-    const rows = await api("/api/ui/containers");
-    cState.rows = rows.filter(r => r.agent_id === state.agentId || !state.agentId);
+    if (!state.agentId) {
+      cState.rows = [];
+      render();
+      return;
+    }
+    cState.rows = await api(`/api/ui/containers?agent_id=${encodeURIComponent(state.agentId)}`);
     const validKeys = new Set(cState.rows.map(containerKey));
     for (const k of [...cState.selected]) {
       if (!validKeys.has(k)) cState.selected.delete(k);

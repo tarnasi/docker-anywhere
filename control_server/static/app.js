@@ -16,13 +16,95 @@ const COMPOSE_LABELS = {
 
 const state = {
   token: localStorage.getItem("ui_token") || "",
-  agentId: localStorage.getItem("agent_id") || "prod-server-01",
+  agentId: localStorage.getItem("agent_id") || "",
+  agents: [],
   view: "dashboard",
   refreshTimer: null,
 };
 
 function $(sel) { return document.querySelector(sel); }
 function $$(sel) { return document.querySelectorAll(sel); }
+
+function agentQuery() {
+  if (!state.agentId) return "";
+  return `?agent_id=${encodeURIComponent(state.agentId)}`;
+}
+
+function isAgentOnline(agent) {
+  if (!agent?.last_seen_at) return false;
+  return Date.now() - new Date(agent.last_seen_at).getTime() < 60000;
+}
+
+function agentOptionLabel(agent) {
+  const online = isAgentOnline(agent);
+  return `${agent.agent_id} (${online ? "online" : "offline"})`;
+}
+
+function updateAgentStatusPill() {
+  const pill = $("#agent-status");
+  if (!pill) return;
+  if (!state.agentId) {
+    pill.textContent = "No agent";
+    pill.className = "status-pill offline";
+    return;
+  }
+  const agent = state.agents.find(a => a.agent_id === state.agentId);
+  if (agent) {
+    const online = isAgentOnline(agent);
+    pill.textContent = online ? "Online" : "Offline";
+    pill.className = `status-pill ${online ? "online" : "offline"}`;
+  } else {
+    pill.textContent = "Offline";
+    pill.className = "status-pill offline";
+  }
+}
+
+function populateAgentSelect() {
+  const sel = $("#agent-select");
+  if (!sel) return;
+
+  if (!state.agents.length) {
+    sel.innerHTML = `<option value="">No agents connected yet</option>`;
+    sel.disabled = true;
+    return;
+  }
+
+  sel.disabled = false;
+  sel.innerHTML = state.agents.map(agent => {
+    const selected = agent.agent_id === state.agentId ? "selected" : "";
+    return `<option value="${escapeHtml(agent.agent_id)}" ${selected}>${escapeHtml(agentOptionLabel(agent))}</option>`;
+  }).join("");
+}
+
+async function loadAgents() {
+  const status = await api("/api/ui/status");
+  state.agents = status.agents || [];
+
+  const knownIds = new Set(state.agents.map(a => a.agent_id));
+  if (!state.agentId || !knownIds.has(state.agentId)) {
+    state.agentId = state.agents[0]?.agent_id || "";
+    if (state.agentId) localStorage.setItem("agent_id", state.agentId);
+    else localStorage.removeItem("agent_id");
+  }
+
+  populateAgentSelect();
+  updateAgentStatusPill();
+  return status;
+}
+
+function switchAgent(agentId) {
+  if (!agentId || agentId === state.agentId) return;
+  state.agentId = agentId;
+  localStorage.setItem("agent_id", agentId);
+  updateAgentStatusPill();
+  const titles = {
+    dashboard: "Dashboard", containers: "Containers", images: "Images",
+    networks: "Networks", orders: "Orders", commands: "Commands",
+  };
+  const title = titles[state.view] || "Docker Anywhere";
+  $("#page-heading").textContent = `${title} · ${state.agentId}`;
+  refreshCurrentView();
+}
 
 async function api(path, opts = {}) {
   const res = await fetch(path, {
@@ -88,12 +170,17 @@ function showView(name) {
     dashboard: "Dashboard", containers: "Containers", images: "Images",
     networks: "Networks", orders: "Orders", commands: "Commands",
   };
-  $("#page-heading").textContent = titles[name] || "Docker Anywhere";
+  const title = titles[name] || "Docker Anywhere";
+  $("#page-heading").textContent = state.agentId ? `${title} · ${state.agentId}` : title;
   refreshCurrentView();
 }
 
 async function createOrder(body) {
-  return api("/api/ui/orders", { method: "POST", body: JSON.stringify(body) });
+  if (!state.agentId) throw new Error("Select an agent first");
+  return api("/api/ui/orders", {
+    method: "POST",
+    body: JSON.stringify({ ...body, agent_id: state.agentId }),
+  });
 }
 
 function escapeHtml(value) {
@@ -138,11 +225,22 @@ async function queueComposeAction(action, projectPath) {
 }
 
 async function refreshDashboard() {
-  const [status, containers, images, networks, active] = await Promise.all([
-    api("/api/ui/status"),
-    api("/api/ui/containers"),
-    api("/api/ui/images"),
-    api("/api/ui/networks"),
+  if (!state.agentId) {
+    $("#stat-containers").textContent = "—";
+    $("#stat-images").textContent = "—";
+    $("#stat-networks").textContent = "—";
+    $("#stat-order").textContent = "—";
+    $("#dashboard-agent-id").textContent = "—";
+    $("#last-poll").textContent = "—";
+    $("#last-sync").textContent = "—";
+    updateAgentStatusPill();
+    return;
+  }
+
+  const [containers, images, networks, active] = await Promise.all([
+    api(`/api/ui/containers${agentQuery()}`),
+    api(`/api/ui/images${agentQuery()}`),
+    api(`/api/ui/networks${agentQuery()}`),
     api(`/api/ui/orders/active?agent_id=${encodeURIComponent(state.agentId)}`).catch(() => null),
   ]);
 
@@ -151,22 +249,14 @@ async function refreshDashboard() {
   $("#stat-networks").textContent = networks.length;
   $("#stat-order").textContent = active ? active.status : "None";
 
-  const agent = status.agents.find(a => a.agent_id === state.agentId);
-  const pill = $("#agent-status");
-  if (agent) {
-    const lastSeen = new Date(agent.last_seen_at);
-    const online = Date.now() - lastSeen.getTime() < 60000;
-    pill.textContent = online ? "Online" : "Offline";
-    pill.className = `status-pill ${online ? "online" : "offline"}`;
-  } else {
-    pill.textContent = "Offline";
-    pill.className = "status-pill offline";
-  }
+  const agent = state.agents.find(a => a.agent_id === state.agentId);
+  updateAgentStatusPill();
 
-  $("#last-poll").textContent = fmtDate(status.api_log?.last_agent_poll_at);
-  $("#last-sync").textContent = fmtDate(status.api_log?.last_inventory_sync_at);
+  $("#dashboard-agent-id").textContent = state.agentId;
+  $("#last-poll").textContent = fmtDate(agent?.last_seen_at);
+  $("#last-sync").textContent = fmtDate(agent?.last_inventory_at);
 
-  const paths = uniqueProjectPaths(containers.filter(c => c.agent_id === state.agentId));
+  const paths = uniqueProjectPaths(containers);
   const current = $("#project-select")?.value;
   populateProjectSelect(paths, paths.includes(current) ? current : paths[0]);
 }
@@ -176,8 +266,12 @@ async function refreshContainers() {
 }
 
 async function refreshImages() {
-  const rows = await api("/api/ui/images");
-  const filtered = rows.filter(r => r.agent_id === state.agentId);
+  if (!state.agentId) {
+    $("#images-body").innerHTML = "";
+    $("#images-empty").classList.remove("hidden");
+    return;
+  }
+  const filtered = await api(`/api/ui/images${agentQuery()}`);
   const tbody = $("#images-body");
   tbody.innerHTML = filtered.map(img => {
     const ref = `${img.repository}:${img.tag}`;
@@ -209,8 +303,12 @@ async function refreshImages() {
 }
 
 async function refreshNetworks() {
-  const rows = await api("/api/ui/networks");
-  const filtered = rows.filter(r => r.agent_id === state.agentId);
+  if (!state.agentId) {
+    $("#networks-body").innerHTML = "";
+    $("#networks-empty").classList.remove("hidden");
+    return;
+  }
+  const filtered = await api(`/api/ui/networks${agentQuery()}`);
   const tbody = $("#networks-body");
   tbody.innerHTML = filtered.map(n => `
     <tr>
@@ -241,6 +339,11 @@ async function refreshNetworks() {
 }
 
 async function refreshOrders() {
+  if (!state.agentId) {
+    $("#active-order-card").classList.add("hidden");
+    $("#orders-body").innerHTML = "";
+    return;
+  }
   const [orders, active] = await Promise.all([
     api(`/api/ui/orders?agent_id=${encodeURIComponent(state.agentId)}&limit=30`),
     api(`/api/ui/orders/active?agent_id=${encodeURIComponent(state.agentId)}`).catch(() => null),
@@ -296,6 +399,7 @@ function tbodyDelHandlers() {
 
 async function refreshCurrentView() {
   try {
+    await loadAgents();
     switch (state.view) {
       case "dashboard": await refreshDashboard(); break;
       case "containers": await refreshContainers(); break;
@@ -321,16 +425,15 @@ function populateActionSelects() {
 
 async function login() {
   state.token = $("#ui-token").value.trim();
-  state.agentId = $("#default-agent").value.trim() || "prod-server-01";
   if (!state.token) return;
 
   try {
     await api("/api/ui/status");
     localStorage.setItem("ui_token", state.token);
-    localStorage.setItem("agent_id", state.agentId);
     $("#login-screen").classList.add("hidden");
     $("#app").classList.remove("hidden");
     populateActionSelects();
+    await loadAgents();
     showView("dashboard");
     startAutoRefresh();
   } catch (e) {
@@ -346,6 +449,10 @@ function bindEvents() {
 
   $$("nav.bottom-nav button").forEach(btn => {
     btn.addEventListener("click", () => showView(btn.dataset.view));
+  });
+
+  $("#agent-select")?.addEventListener("change", (e) => {
+    switchAgent(e.target.value);
   });
 
   $$("[data-compose-action]").forEach(btn => {
@@ -444,7 +551,6 @@ document.addEventListener("DOMContentLoaded", () => {
   if (window.ContainersPage) ContainersPage.init();
   if (state.token) {
     $("#ui-token").value = state.token;
-    $("#default-agent").value = state.agentId;
     login();
   }
 });

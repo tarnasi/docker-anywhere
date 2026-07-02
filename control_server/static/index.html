@@ -21,8 +21,6 @@
       <p>Remote Docker control for your private server</p>
       <label for="ui-token">UI Access Token</label>
       <input id="ui-token" type="password" placeholder="Enter UI_SECRET" autocomplete="off" />
-      <label for="default-agent">Default Agent ID</label>
-      <input id="default-agent" type="text" placeholder="prod-server-01" value="prod-server-01" />
       <button class="btn btn-primary" style="width:100%;margin-top:.5rem" id="login-btn">Connect</button>
       <p id="login-error" class="alert alert-error hidden" style="margin-top:1rem;margin-bottom:0"></p>
     </div>
@@ -46,7 +44,8 @@
         </div>
         <div class="card">
           <h2>Server Status</h2>
-          <p style="font-size:.85rem;color:var(--muted)">Last agent poll: <span id="last-poll">—</span></p>
+          <p style="font-size:.85rem;color:var(--muted)">Agent ID: <span id="dashboard-agent-id" class="mono">—</span></p>
+          <p style="font-size:.85rem;color:var(--muted);margin-top:.35rem">Last seen: <span id="last-poll">—</span></p>
           <p style="font-size:.85rem;color:var(--muted);margin-top:.35rem">Last inventory sync: <span id="last-sync">—</span></p>
         </div>
         <div class="card">
@@ -283,6 +282,13 @@
       </section>
     </main>
 
+    <div class="bottom-shell">
+    <div class="agent-bar">
+      <label for="agent-select">Agent</label>
+      <select id="agent-select" aria-label="Select agent">
+        <option value="">No agents connected</option>
+      </select>
+    </div>
     <nav class="bottom-nav">
       <button data-view="dashboard" class="active" aria-label="Dashboard">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
@@ -309,9 +315,10 @@
         Commands
       </button>
     </nav>
+    </div>
   </div>
 
-  <script src="/static/app.js?v=7"></script>
-  <script src="/static/containers.js?v=2"></script>
+  <script src="/static/app.js?v=8"></script>
+  <script src="/static/containers.js?v=3"></script>
 </body>
 </html>

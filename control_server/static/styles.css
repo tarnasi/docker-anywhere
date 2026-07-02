@@ -12,6 +12,7 @@
   --danger: #ef4444;
   --radius: 12px;
   --nav-h: 64px;
+  --agent-bar-h: 48px;
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
 }
@@ -89,25 +90,55 @@ header h1 { font-size: 1.1rem; font-weight: 600; }
 main {
   flex: 1;
   padding: 1rem;
-  padding-bottom: calc(var(--nav-h) + var(--safe-bottom) + 1rem);
+  padding-bottom: calc(var(--nav-h) + var(--agent-bar-h) + var(--safe-bottom) + 1rem);
   max-width: 960px;
   margin: 0 auto;
   width: 100%;
 }
 
-nav.bottom-nav {
+.bottom-shell {
   position: fixed;
   bottom: 0;
   left: 0;
   right: 0;
-  height: calc(var(--nav-h) + var(--safe-bottom));
+  z-index: 20;
   padding-bottom: var(--safe-bottom);
   background: var(--surface);
   border-top: 1px solid var(--border);
+}
+
+.agent-bar {
+  height: var(--agent-bar-h);
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  padding: 0 1rem;
+  background: var(--surface2);
+  border-bottom: 1px solid var(--border);
+}
+
+.agent-bar label {
+  margin: 0;
+  font-size: .72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  white-space: nowrap;
+}
+
+.agent-bar select {
+  flex: 1;
+  margin: 0;
+  min-width: 0;
+  font-size: .85rem;
+  padding: .45rem .65rem;
+}
+
+nav.bottom-nav {
+  height: var(--nav-h);
   display: flex;
   justify-content: space-around;
   align-items: center;
-  z-index: 20;
 }
 
 nav.bottom-nav button {
