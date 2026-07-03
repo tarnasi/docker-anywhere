@@ -107,7 +107,7 @@ class Database:
                     size_bytes INTEGER,
                     created_at_image TEXT,
                     synced_at TEXT NOT NULL,
-                    UNIQUE(agent_id, image_id)
+                    UNIQUE(agent_id, repository, tag)
                 );
 
                 CREATE TABLE IF NOT EXISTS networks (
@@ -131,7 +131,50 @@ class Database:
                 INSERT OR IGNORE INTO api_call_log (id) VALUES (1);
                 """
             )
+            self._migrate_images_unique(conn)
             self._seed_templates(conn)
+
+    def _migrate_images_unique(self, conn: sqlite3.Connection) -> None:
+        """Docker lists one row per repo:tag; the same image_id can repeat."""
+        row = conn.execute(
+            "SELECT sql FROM sqlite_master WHERE type='table' AND name='images'"
+        ).fetchone()
+        if not row or not row[0]:
+            return
+        ddl = row[0]
+        if "UNIQUE(agent_id, repository, tag)" in ddl:
+            return
+        if "UNIQUE(agent_id, image_id)" not in ddl:
+            return
+        conn.executescript(
+            """
+            CREATE TABLE images_migrated (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                agent_id TEXT NOT NULL,
+                image_id TEXT NOT NULL,
+                repository TEXT,
+                tag TEXT,
+                size_bytes INTEGER,
+                created_at_image TEXT,
+                synced_at TEXT NOT NULL,
+                UNIQUE(agent_id, repository, tag)
+            );
+            INSERT OR IGNORE INTO images_migrated
+                (id, agent_id, image_id, repository, tag, size_bytes, created_at_image, synced_at)
+            SELECT id, agent_id, image_id, repository, tag, size_bytes, created_at_image, synced_at
+            FROM images;
+            DROP TABLE images;
+            ALTER TABLE images_migrated RENAME TO images;
+            """
+        )
+
+    @staticmethod
+    def _dedupe_images(images: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        unique: dict[tuple[str, str], dict[str, Any]] = {}
+        for img in images:
+            key = (img.get("repository") or "", img.get("tag") or "")
+            unique[key] = img
+        return list(unique.values())
 
     def _seed_templates(self, conn: sqlite3.Connection) -> None:
         now = _iso()
@@ -184,11 +227,14 @@ class Database:
         with self._lock, self._conn() as conn:
             conn.execute(
                 """
-                UPDATE agent_heartbeat
-                SET last_inventory_at = ?, last_seen_at = ?, status = 'online'
-                WHERE agent_id = ?
+                INSERT INTO agent_heartbeat (agent_id, last_seen_at, last_inventory_at, status)
+                VALUES (?, ?, ?, 'online')
+                ON CONFLICT(agent_id) DO UPDATE SET
+                    last_inventory_at = excluded.last_inventory_at,
+                    last_seen_at = excluded.last_seen_at,
+                    status = 'online'
                 """,
-                (now, now, agent_id),
+                (agent_id, now, now),
             )
             conn.execute(
                 "UPDATE api_call_log SET last_inventory_sync_at = ? WHERE id = 1",
@@ -477,7 +523,7 @@ class Database:
                     ),
                 )
 
-            for img in images:
+            for img in self._dedupe_images(images):
                 conn.execute(
                     """
                     INSERT INTO images
