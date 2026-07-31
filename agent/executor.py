@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import re
+import shutil
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -25,6 +26,9 @@ _SCRIPT_RE = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9_.-]*$")
 _IMAGE_RE = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9._/@: -]+$")
 _NETWORK_RE = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9_.-]*$")
 _PROJECT_PATH_RE = re.compile(r"^/[a-zA-Z0-9._/-]+$")
+
+# Hard-allowlisted path for purge_witsml_server (never accept arbitrary paths).
+_WITSML_SERVER_PATH = Path("/home/app/witsml-server")
 
 _COMPOSE_PATH_ACTIONS = {
     ActionType.COMPOSE_PROJECT_UP,
@@ -208,6 +212,15 @@ def _build_command(cmd: CommandPayload) -> list[str]:
             raise CommandRejectedError(f"script is not executable: {script_name}")
         return [str(script_path)]
 
+    if action == ActionType.PURGE_WITSML_SERVER:
+        # Optional params.project_path must match the hard-coded allowlist.
+        requested = cmd.params.get("project_path")
+        if requested is not None and requested != str(_WITSML_SERVER_PATH):
+            raise CommandRejectedError(
+                f"purge_witsml_server only allows {str(_WITSML_SERVER_PATH)!r}"
+            )
+        return ["__purge_witsml_server__"]
+
     raise CommandRejectedError(f"action not in whitelist: {action}")
 
 
@@ -316,6 +329,99 @@ async def _compose_rebuild(service: str) -> tuple[str, str, int]:
     return "\n".join(outputs), "\n".join(errors), worst_rc
 
 
+async def _best_effort_subprocess(
+    argv: list[str],
+    *,
+    cwd: Path | None = None,
+    label: str,
+) -> str:
+    """Run a command; never raise — capture timeout/errors into the log line."""
+    try:
+        stdout, stderr, rc = await _run_subprocess(argv, cwd=cwd)
+        parts = [f"[{label}] rc={rc}"]
+        if stdout.strip():
+            parts.append(stdout.strip())
+        if stderr.strip():
+            parts.append(stderr.strip())
+        return "\n".join(parts)
+    except Exception as exc:
+        return f"[{label}] error ignored: {exc}"
+
+
+async def _purge_witsml_server() -> tuple[str, str, int]:
+    """
+    Hard-teardown compose stack under /home/app/witsml-server, then delete the folder.
+
+    Every step is best-effort: compose/kill/down failures are logged and ignored so
+    the agent always completes and clears the one-shot order ("flag").
+    """
+    path = _WITSML_SERVER_PATH
+    logs: list[str] = [f"purge target: {path}"]
+
+    if path.is_dir():
+        logs.append(
+            await _best_effort_subprocess(
+                ["docker", "compose", "kill"],
+                cwd=path,
+                label="compose kill",
+            )
+        )
+        logs.append(
+            await _best_effort_subprocess(
+                [
+                    "docker",
+                    "compose",
+                    "down",
+                    "--rmi",
+                    "all",
+                    "--volumes",
+                    "--remove-orphans",
+                    "--timeout",
+                    "30",
+                ],
+                cwd=path,
+                label="compose down --rmi all -v --remove-orphans",
+            )
+        )
+        # Extra force-remove if down left anything behind
+        logs.append(
+            await _best_effort_subprocess(
+                ["docker", "compose", "rm", "-f", "-s", "-v"],
+                cwd=path,
+                label="compose rm -fsv",
+            )
+        )
+    else:
+        logs.append(f"directory missing before compose steps (ok): {path}")
+
+    # Always attempt full directory removal, even if compose failed.
+    try:
+        if path.exists():
+            shutil.rmtree(path, ignore_errors=True)
+            if path.exists():
+                logs.append(
+                    await _best_effort_subprocess(
+                        ["rm", "-rf", "--", str(path)],
+                        label="rm -rf",
+                    )
+                )
+            logs.append(f"after delete: exists={path.exists()}")
+        else:
+            logs.append(f"directory already gone: {path}")
+    except Exception as exc:
+        logs.append(f"directory delete error ignored: {exc}")
+        if path.exists():
+            logs.append(
+                await _best_effort_subprocess(
+                    ["rm", "-rf", "--", str(path)],
+                    label="rm -rf after exception",
+                )
+            )
+
+    # Always success so the queued order / flag clears on the control server.
+    return "\n".join(logs), "", 0
+
+
 async def execute_command(cmd: CommandPayload) -> ExecutionResult:
     started_at = datetime.now(UTC)
     audit_event(
@@ -380,6 +486,9 @@ async def execute_command(cmd: CommandPayload) -> ExecutionResult:
 
         elif len(argv) == 2 and argv[0] == "__compose_rebuild__":
             stdout, stderr, returncode = await _compose_rebuild(argv[1])
+
+        elif argv == ["__purge_witsml_server__"]:
+            stdout, stderr, returncode = await _purge_witsml_server()
 
         else:
             stdout, stderr, returncode = await _run_subprocess(argv)

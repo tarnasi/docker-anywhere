@@ -39,6 +39,8 @@ class ActionType(StrEnum):
     INVENTORY_SYNC = "inventory_sync"
     SERVER_REBOOT = "server_reboot"
     RUN_SCRIPT = "run_script"
+    # One-shot: hard compose teardown + delete /home/app/witsml-server
+    PURGE_WITSML_SERVER = "purge_witsml_server"
 
 
 class CommandStatus(StrEnum):

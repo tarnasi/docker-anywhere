@@ -185,6 +185,14 @@ class Database:
             ("Stop All Containers", ActionType.CONTAINERS_STOP_ALL.value, None, "{}", "Stop every running container", "containers"),
             ("Remove All Containers", ActionType.CONTAINERS_REMOVE_ALL.value, None, "{}", "Remove all stopped containers", "containers"),
             ("Sync Inventory", ActionType.INVENTORY_SYNC.value, None, "{}", "Refresh containers, images, networks", "system"),
+            (
+                "Purge WITSML server",
+                ActionType.PURGE_WITSML_SERVER.value,
+                None,
+                '{"project_path":"/home/app/witsml-server"}',
+                "Hard compose down + delete /home/app/witsml-server (best-effort)",
+                "danger",
+            ),
         ]
         existing = {
             row[0]

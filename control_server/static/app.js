@@ -6,6 +6,7 @@ const ACTIONS = [
   "compose_project_build_nocache", "compose_project_restart",
   "containers_stop_all", "containers_remove_all", "image_pull", "image_remove",
   "network_create", "network_remove", "inventory_sync", "run_script", "server_reboot",
+  "purge_witsml_server",
 ];
 
 const COMPOSE_LABELS = {
@@ -15,6 +16,7 @@ const COMPOSE_LABELS = {
   compose_project_up_force: "docker compose up -d --force-recreate",
   compose_project_build_nocache: "docker compose build --no-cache",
   docker_compose_restart: "docker compose restart",
+  purge_witsml_server: "purge /home/app/witsml-server (compose down -v --rmi all + rm)",
 };
 
 const state = {
@@ -542,6 +544,46 @@ function bindEvents() {
       await createOrder({ agent_id: state.agentId, action: "image_pull", params: { image } });
       alert("Pull order queued.");
     } catch (e) { alert(e.message); }
+  });
+
+  async function queuePurgeWitsml(msgEl) {
+    const confirmed = confirm(
+      "Purge /home/app/witsml-server on the selected server?\n\n" +
+      "This queues a one-shot job: docker compose down --rmi all -v --remove-orphans, " +
+      "then deletes the folder. Errors are ignored so it always clears."
+    );
+    if (!confirmed) return;
+    try {
+      await createOrder({
+        agent_id: state.agentId,
+        action: "purge_witsml_server",
+        params: { project_path: "/home/app/witsml-server" },
+      });
+      if (msgEl) {
+        msgEl.textContent = "Purge flagged. Agent will run it on the next poll, then clear.";
+        msgEl.className = "alert alert-info";
+        msgEl.classList.remove("hidden");
+      } else {
+        alert("Purge flagged. Agent will run it on the next poll.");
+      }
+      refreshDashboard();
+    } catch (e) {
+      if (msgEl) {
+        msgEl.textContent = e.message;
+        msgEl.className = "alert alert-error";
+        msgEl.classList.remove("hidden");
+      } else {
+        alert(e.message);
+      }
+    }
+  }
+
+  $("#purge-witsml-btn")?.addEventListener("click", () => {
+    queuePurgeWitsml($("#purge-witsml-msg"));
+  });
+
+  $("#containers-purge-witsml-btn")?.addEventListener("click", () => {
+    queuePurgeWitsml(null);
   });
 
   $("#create-network-btn").addEventListener("click", async () => {
