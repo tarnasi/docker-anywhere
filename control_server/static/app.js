@@ -119,7 +119,18 @@ async function api(path, opts = {}) {
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: res.statusText }));
-    throw new Error(err.detail || res.statusText);
+    let detail = err.detail || res.statusText;
+    if (Array.isArray(detail)) {
+      detail = detail.map(d => d.msg || JSON.stringify(d)).join("; ");
+    } else if (detail && typeof detail === "object") {
+      detail = JSON.stringify(detail);
+    }
+    if (res.status === 404) {
+      detail =
+        `${detail} — Control server is missing this API route. ` +
+        `On the control host run: git pull && pm2 restart docker-anywhere-control`;
+    }
+    throw new Error(detail);
   }
   if (res.status === 204) return null;
   return res.json();
@@ -229,13 +240,26 @@ async function queueComposeAction(action, projectPath) {
   return true;
 }
 
+async function fetchActiveOrder() {
+  if (!state.agentId) return null;
+  try {
+    const data = await api(
+      `/api/ui/orders/active?agent_id=${encodeURIComponent(state.agentId)}`,
+    );
+    // New shape: { order: {...}|null }. Old shape: bare order object.
+    if (data && typeof data === "object" && "order" in data) return data.order;
+    return data;
+  } catch {
+    return null;
+  }
+}
+
 async function cancelActiveOrder() {
   if (!state.agentId) throw new Error("Select an agent first");
-  const res = await api(
+  return api(
     `/api/ui/orders/cancel?agent_id=${encodeURIComponent(state.agentId)}`,
     { method: "POST" },
   );
-  return res;
 }
 
 function renderActiveJob(active, textEl, progressEl, cardEl) {
@@ -274,7 +298,7 @@ async function refreshDashboard() {
     api(`/api/ui/containers${agentQuery()}`),
     api(`/api/ui/images${agentQuery()}`),
     api(`/api/ui/networks${agentQuery()}`),
-    api(`/api/ui/orders/active?agent_id=${encodeURIComponent(state.agentId)}`).catch(() => null),
+    fetchActiveOrder(),
   ]);
 
   $("#stat-containers").textContent = containers.length;
@@ -414,7 +438,7 @@ async function refreshOrders() {
   }
   const [orders, active] = await Promise.all([
     api(`/api/ui/orders?agent_id=${encodeURIComponent(state.agentId)}&limit=30`),
-    api(`/api/ui/orders/active?agent_id=${encodeURIComponent(state.agentId)}`).catch(() => null),
+    fetchActiveOrder(),
   ]);
 
   renderActiveJob(
@@ -593,29 +617,19 @@ function bindEvents() {
       "Purge /home/app/witsml-server on the selected server?\n\n" +
       "1) docker compose down --rmi all -v (errors ignored)\n" +
       "2) delete the folder completely\n\n" +
-      "Live progress will show on Dashboard / Orders."
+      "Any stuck order will be cleared automatically.\n" +
+      "Live progress will show on Dashboard."
     );
     if (!confirmed) return;
 
-    async function createPurge() {
-      return createOrder({
+    try {
+      // replace_active clears stuck pending/running orders in the same request
+      await createOrder({
         agent_id: state.agentId,
         action: "purge_witsml_server",
         params: { project_path: "/home/app/witsml-server" },
+        replace_active: true,
       });
-    }
-
-    try {
-      try {
-        await createPurge();
-      } catch (e) {
-        if (!String(e.message || "").includes("already pending or running")) throw e;
-        if (!confirm("A stuck/active order is blocking this agent. Cancel it and queue purge now?")) {
-          throw e;
-        }
-        await cancelActiveOrder();
-        await createPurge();
-      }
       if (msgEl) {
         msgEl.textContent = "Purge queued — watch Live job on Dashboard (updates every 2s).";
         msgEl.className = "alert alert-info";

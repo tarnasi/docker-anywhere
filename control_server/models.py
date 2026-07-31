@@ -108,6 +108,8 @@ class CreateOrderRequest(BaseModel):
     action: ActionType | None = None
     service: str | None = None
     params: dict[str, Any] = Field(default_factory=dict)
+    # If true, cancel any stuck pending/running order then queue this one.
+    replace_active: bool = False
 
 
 class OrderProgressRequest(BaseModel):

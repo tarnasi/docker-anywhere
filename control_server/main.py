@@ -364,8 +364,10 @@ async def ui_orders(
 async def ui_active_order(
     agent_id: str,
     _: None = Depends(verify_ui_request),
-) -> dict[str, Any] | None:
-    return db.get_active_order(agent_id)
+) -> dict[str, Any]:
+    # Always 200 — never bare null (avoids FastAPI/proxy "Not Found" confusion).
+    order = db.get_active_order(agent_id)
+    return {"order": order}
 
 
 @app.post("/api/ui/orders/cancel", tags=["ui"])
@@ -384,6 +386,8 @@ async def ui_create_order(
 ) -> dict[str, Any]:
     try:
         if body.template_id is not None:
+            if body.replace_active:
+                db.cancel_active_orders(body.agent_id, reason="replaced by template order")
             return db.create_order_from_template(body.agent_id, body.template_id)
         if not body.action:
             raise HTTPException(status_code=422, detail="action or template_id required")
@@ -392,6 +396,7 @@ async def ui_create_order(
             action=body.action.value,
             service=body.service,
             params=body.params,
+            replace_active=body.replace_active,
         )
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc

@@ -374,9 +374,16 @@ class Database:
         service: str | None,
         params: dict[str, Any],
         template_id: int | None = None,
+        replace_active: bool = False,
     ) -> dict[str, Any]:
         if self.has_active_order(agent_id):
-            raise ValueError("An order is already pending or running for this agent")
+            if replace_active:
+                self.cancel_active_orders(
+                    agent_id,
+                    reason="replaced by new order",
+                )
+            else:
+                raise ValueError("An order is already pending or running for this agent")
         command_id = str(uuid4())
         now = _iso()
         with self._lock, self._conn() as conn:
