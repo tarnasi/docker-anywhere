@@ -11,8 +11,10 @@ import asyncio
 import logging
 import re
 import shutil
+from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 from agent.compose_discovery import ComposeProject, discover_compose_projects
 from agent.config import settings
@@ -20,6 +22,8 @@ from agent.models import ActionType, CommandPayload, CommandStatus, ExecutionRes
 from agent.security import audit_event
 
 logger = logging.getLogger("agent.executor")
+
+ProgressCallback = Callable[[str], Awaitable[None]]
 
 _SERVICE_RE = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9_.-]*$")
 _SCRIPT_RE = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9_.-]*$")
@@ -348,25 +352,40 @@ async def _best_effort_subprocess(
         return f"[{label}] error ignored: {exc}"
 
 
-async def _purge_witsml_server() -> tuple[str, str, int]:
+async def _purge_witsml_server(
+    on_progress: ProgressCallback | None = None,
+) -> tuple[str, str, int]:
     """
-    Hard-teardown compose stack under /home/app/witsml-server, then delete the folder.
+    1) Hard compose teardown under /home/app/witsml-server (best-effort).
+    2) Always delete the folder (primary goal).
 
-    Every step is best-effort: compose/kill/down failures are logged and ignored so
-    the agent always completes and clears the one-shot order ("flag").
+    Compose/docker failures are ignored. Folder removal is always attempted.
     """
     path = _WITSML_SERVER_PATH
-    logs: list[str] = [f"purge target: {path}"]
+    logs: list[str] = []
+
+    async def step(msg: str) -> None:
+        logs.append(msg)
+        logger.info("purge_witsml: %s", msg)
+        if on_progress is not None:
+            try:
+                await on_progress(msg)
+            except Exception:
+                logger.exception("progress callback failed")
+
+    await step(f"[1/4] purge start — target={path}")
 
     if path.is_dir():
-        logs.append(
+        await step("[2/4] docker compose kill (best-effort)")
+        await step(
             await _best_effort_subprocess(
                 ["docker", "compose", "kill"],
                 cwd=path,
                 label="compose kill",
             )
         )
-        logs.append(
+        await step("[3/4] docker compose down --rmi all -v --remove-orphans (best-effort)")
+        await step(
             await _best_effort_subprocess(
                 [
                     "docker",
@@ -383,8 +402,7 @@ async def _purge_witsml_server() -> tuple[str, str, int]:
                 label="compose down --rmi all -v --remove-orphans",
             )
         )
-        # Extra force-remove if down left anything behind
-        logs.append(
+        await step(
             await _best_effort_subprocess(
                 ["docker", "compose", "rm", "-f", "-s", "-v"],
                 cwd=path,
@@ -392,37 +410,51 @@ async def _purge_witsml_server() -> tuple[str, str, int]:
             )
         )
     else:
-        logs.append(f"directory missing before compose steps (ok): {path}")
+        await step("[2/4] directory missing — skip compose (ok)")
+        await step("[3/4] skip compose down (ok)")
 
-    # Always attempt full directory removal, even if compose failed.
+    await step(f"[4/4] removing directory {path}")
     try:
         if path.exists():
             shutil.rmtree(path, ignore_errors=True)
-            if path.exists():
-                logs.append(
-                    await _best_effort_subprocess(
-                        ["rm", "-rf", "--", str(path)],
-                        label="rm -rf",
-                    )
-                )
-            logs.append(f"after delete: exists={path.exists()}")
-        else:
-            logs.append(f"directory already gone: {path}")
-    except Exception as exc:
-        logs.append(f"directory delete error ignored: {exc}")
         if path.exists():
-            logs.append(
+            await step(
                 await _best_effort_subprocess(
                     ["rm", "-rf", "--", str(path)],
-                    label="rm -rf after exception",
+                    label="rm -rf",
                 )
             )
+        if path.exists():
+            await step(
+                await _best_effort_subprocess(
+                    ["chmod", "-R", "u+w", str(path)],
+                    label="chmod -R u+w",
+                )
+            )
+            await step(
+                await _best_effort_subprocess(
+                    ["rm", "-rf", "--", str(path)],
+                    label="rm -rf after chmod",
+                )
+            )
+    except Exception as exc:
+        await step(f"directory delete error (continuing): {exc}")
+        await step(
+            await _best_effort_subprocess(
+                ["rm", "-rf", "--", str(path)],
+                label="rm -rf after exception",
+            )
+        )
 
-    # Always success so the queued order / flag clears on the control server.
-    return "\n".join(logs), "", 0
+    gone = not path.exists()
+    await step(f"done — folder_removed={gone} path={path}")
+    return "\n".join(logs), "", 0 if gone else 1
 
 
-async def execute_command(cmd: CommandPayload) -> ExecutionResult:
+async def execute_command(
+    cmd: CommandPayload,
+    on_progress: ProgressCallback | None = None,
+) -> ExecutionResult:
     started_at = datetime.now(UTC)
     audit_event(
         "command_received",
@@ -488,7 +520,7 @@ async def execute_command(cmd: CommandPayload) -> ExecutionResult:
             stdout, stderr, returncode = await _compose_rebuild(argv[1])
 
         elif argv == ["__purge_witsml_server__"]:
-            stdout, stderr, returncode = await _purge_witsml_server()
+            stdout, stderr, returncode = await _purge_witsml_server(on_progress=on_progress)
 
         else:
             stdout, stderr, returncode = await _run_subprocess(argv)

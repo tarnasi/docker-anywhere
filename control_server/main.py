@@ -19,9 +19,11 @@ from control_server.database import db
 from control_server.models import (
     CreateOrderRequest,
     CreateTemplateRequest,
+    FailOrderRequest,
     HistoryEntry,
     HistoryResponse,
     InventorySyncRequest,
+    OrderProgressRequest,
     PollResponse,
     PushCommandRequest,
     PushCommandResponse,
@@ -142,6 +144,47 @@ async def post_result(
         result.status.value,
     )
     return {"status": "accepted"}
+
+
+@app.post("/api/v1/progress", tags=["agent"])
+async def post_progress(
+    raw: bytes = Depends(verify_agent_request),
+) -> dict[str, str]:
+    try:
+        body = OrderProgressRequest.model_validate_json(raw)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"invalid progress payload: {exc}",
+        ) from exc
+
+    if not db.append_order_progress(str(body.command_id), body.message):
+        raise HTTPException(status_code=404, detail="running order not found")
+    return {"status": "accepted"}
+
+
+@app.post("/api/v1/orders/fail", tags=["agent"])
+async def fail_order(
+    raw: bytes = Depends(verify_agent_request),
+) -> dict[str, str]:
+    """Agent reports it cannot execute a dequeued order (e.g. unknown action on old binary)."""
+    try:
+        body = FailOrderRequest.model_validate_json(raw)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"invalid fail payload: {exc}",
+        ) from exc
+
+    if not db.fail_order(str(body.command_id), body.error_message):
+        raise HTTPException(status_code=404, detail="active order not found")
+    logger.warning(
+        "order force-failed command_id=%s agent=%s reason=%s",
+        body.command_id,
+        body.agent_id,
+        body.error_message,
+    )
+    return {"status": "failed"}
 
 
 @app.post("/api/v1/inventory", tags=["agent"])
@@ -323,6 +366,15 @@ async def ui_active_order(
     _: None = Depends(verify_ui_request),
 ) -> dict[str, Any] | None:
     return db.get_active_order(agent_id)
+
+
+@app.post("/api/ui/orders/cancel", tags=["ui"])
+async def ui_cancel_active_orders(
+    agent_id: str,
+    _: None = Depends(verify_ui_request),
+) -> dict[str, Any]:
+    cancelled = db.cancel_active_orders(agent_id)
+    return {"cancelled": cancelled, "agent_id": agent_id}
 
 
 @app.post("/api/ui/orders", tags=["ui"])

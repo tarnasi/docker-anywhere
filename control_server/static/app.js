@@ -229,6 +229,33 @@ async function queueComposeAction(action, projectPath) {
   return true;
 }
 
+async function cancelActiveOrder() {
+  if (!state.agentId) throw new Error("Select an agent first");
+  const res = await api(
+    `/api/ui/orders/cancel?agent_id=${encodeURIComponent(state.agentId)}`,
+    { method: "POST" },
+  );
+  return res;
+}
+
+function renderActiveJob(active, textEl, progressEl, cardEl) {
+  if (!cardEl) return;
+  if (!active) {
+    cardEl.classList.add("hidden");
+    if (progressEl) progressEl.textContent = "";
+    return;
+  }
+  cardEl.classList.remove("hidden");
+  if (textEl) {
+    textEl.textContent =
+      `${active.action} — ${active.status} (since ${fmtDate(active.created_at)})`;
+  }
+  if (progressEl) {
+    progressEl.textContent = active.stdout || "(waiting for agent progress…)";
+    progressEl.scrollTop = progressEl.scrollHeight;
+  }
+}
+
 async function refreshDashboard() {
   if (!state.agentId) {
     $("#stat-containers").textContent = "—";
@@ -238,6 +265,7 @@ async function refreshDashboard() {
     $("#dashboard-agent-id").textContent = "—";
     $("#last-poll").textContent = "—";
     $("#last-sync").textContent = "—";
+    renderActiveJob(null, null, null, $("#dashboard-job-card"));
     updateAgentStatusPill();
     return;
   }
@@ -252,7 +280,7 @@ async function refreshDashboard() {
   $("#stat-containers").textContent = containers.length;
   $("#stat-images").textContent = images.length;
   $("#stat-networks").textContent = networks.length;
-  $("#stat-order").textContent = active ? active.status : "None";
+  $("#stat-order").textContent = active ? `${active.action} (${active.status})` : "None";
 
   const agent = state.agents.find(a => a.agent_id === state.agentId);
   updateAgentStatusPill();
@@ -261,11 +289,19 @@ async function refreshDashboard() {
   $("#last-poll").textContent = fmtDate(agent?.last_seen_at);
   $("#last-sync").textContent = fmtDate(agent?.last_inventory_at);
 
+  renderActiveJob(
+    active,
+    $("#dashboard-job-text"),
+    $("#dashboard-job-progress"),
+    $("#dashboard-job-card"),
+  );
+
   const paths = uniqueProjectPaths(containers);
   const current = $("#project-select")?.value;
   populateProjectSelect(paths, paths.includes(current) ? current : paths[0]);
 
   await loadCommandTemplates();
+  adjustRefreshInterval(!!active);
 }
 
 function populateQuickTemplateSelect(templates) {
@@ -381,21 +417,20 @@ async function refreshOrders() {
     api(`/api/ui/orders/active?agent_id=${encodeURIComponent(state.agentId)}`).catch(() => null),
   ]);
 
-  const card = $("#active-order-card");
-  if (active) {
-    card.classList.remove("hidden");
-    $("#active-order-text").textContent =
-      `${active.action} — ${active.status} (since ${fmtDate(active.created_at)})`;
-  } else {
-    card.classList.add("hidden");
-  }
+  renderActiveJob(
+    active,
+    $("#active-order-text"),
+    $("#active-order-progress"),
+    $("#active-order-card"),
+  );
+  adjustRefreshInterval(!!active);
 
   $("#orders-body").innerHTML = orders.map(o => `
     <tr>
       <td class="mono">${o.action}${o.service ? ` / ${o.service}` : ""}</td>
       <td>${statusBadge(o.status)}</td>
       <td>${fmtDate(o.created_at)}</td>
-      <td>${o.returncode != null ? `exit ${o.returncode}` : o.error_message || "—"}</td>
+      <td><pre class="mono text-xs" style="max-width:28rem;max-height:6rem;overflow:auto;white-space:pre-wrap;margin:0;">${escapeHtml((o.stdout || o.error_message || "—").slice(0, 2000))}</pre></td>
     </tr>
   `).join("");
 }
@@ -442,7 +477,14 @@ async function refreshCurrentView() {
 
 function startAutoRefresh() {
   if (state.refreshTimer) clearInterval(state.refreshTimer);
-  state.refreshTimer = setInterval(refreshCurrentView, 15000);
+  state.refreshTimer = setInterval(refreshCurrentView, state.refreshMs || 15000);
+}
+
+function adjustRefreshInterval(hasActiveJob) {
+  const next = hasActiveJob ? 2000 : 15000;
+  if (state.refreshMs === next) return;
+  state.refreshMs = next;
+  startAutoRefresh();
 }
 
 function populateActionSelects() {
@@ -549,23 +591,39 @@ function bindEvents() {
   async function queuePurgeWitsml(msgEl) {
     const confirmed = confirm(
       "Purge /home/app/witsml-server on the selected server?\n\n" +
-      "This queues a one-shot job: docker compose down --rmi all -v --remove-orphans, " +
-      "then deletes the folder. Errors are ignored so it always clears."
+      "1) docker compose down --rmi all -v (errors ignored)\n" +
+      "2) delete the folder completely\n\n" +
+      "Live progress will show on Dashboard / Orders."
     );
     if (!confirmed) return;
-    try {
-      await createOrder({
+
+    async function createPurge() {
+      return createOrder({
         agent_id: state.agentId,
         action: "purge_witsml_server",
         params: { project_path: "/home/app/witsml-server" },
       });
+    }
+
+    try {
+      try {
+        await createPurge();
+      } catch (e) {
+        if (!String(e.message || "").includes("already pending or running")) throw e;
+        if (!confirm("A stuck/active order is blocking this agent. Cancel it and queue purge now?")) {
+          throw e;
+        }
+        await cancelActiveOrder();
+        await createPurge();
+      }
       if (msgEl) {
-        msgEl.textContent = "Purge flagged. Agent will run it on the next poll, then clear.";
+        msgEl.textContent = "Purge queued — watch Live job on Dashboard (updates every 2s).";
         msgEl.className = "alert alert-info";
         msgEl.classList.remove("hidden");
       } else {
-        alert("Purge flagged. Agent will run it on the next poll.");
+        alert("Purge queued. Open Dashboard to watch live progress.");
       }
+      showView("dashboard");
       refreshDashboard();
     } catch (e) {
       if (msgEl) {
@@ -585,6 +643,20 @@ function bindEvents() {
   $("#containers-purge-witsml-btn")?.addEventListener("click", () => {
     queuePurgeWitsml(null);
   });
+
+  async function onCancelClick() {
+    if (!confirm("Cancel the active/stuck order for this agent?")) return;
+    try {
+      const res = await cancelActiveOrder();
+      alert(`Cleared ${res.cancelled} order(s). You can queue purge again.`);
+      refreshCurrentView();
+    } catch (e) {
+      alert(e.message);
+    }
+  }
+
+  $("#cancel-active-order-btn")?.addEventListener("click", onCancelClick);
+  $("#dashboard-cancel-order-btn")?.addEventListener("click", onCancelClick);
 
   $("#create-network-btn").addEventListener("click", async () => {
     const name = $("#network-name-input").value.trim();

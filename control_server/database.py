@@ -488,6 +488,52 @@ class Database:
             ).fetchone()
         return self._order_row(row) if row else None
 
+    def cancel_active_orders(self, agent_id: str, reason: str = "cancelled by operator") -> int:
+        """Mark all pending/running orders for an agent as failed so new work can queue."""
+        now = _iso()
+        with self._lock, self._conn() as conn:
+            cur = conn.execute(
+                """
+                UPDATE execute_orders SET
+                    status = 'failed',
+                    finished_at = ?,
+                    error_message = ?
+                WHERE agent_id = ? AND status IN ('pending', 'running')
+                """,
+                (now, reason, agent_id),
+            )
+        return cur.rowcount
+
+    def append_order_progress(self, command_id: str, message: str) -> bool:
+        """Append a live progress line to stdout while the order is running."""
+        line = message.rstrip() + "\n"
+        with self._lock, self._conn() as conn:
+            cur = conn.execute(
+                """
+                UPDATE execute_orders SET
+                    stdout = COALESCE(stdout, '') || ?
+                WHERE command_id = ? AND status = 'running'
+                """,
+                (line, command_id),
+            )
+        return cur.rowcount > 0
+
+    def fail_order(self, command_id: str, error_message: str) -> bool:
+        """Force-fail a stuck pending/running order (e.g. agent cannot parse action)."""
+        now = _iso()
+        with self._lock, self._conn() as conn:
+            cur = conn.execute(
+                """
+                UPDATE execute_orders SET
+                    status = 'failed',
+                    finished_at = ?,
+                    error_message = ?
+                WHERE command_id = ? AND status IN ('pending', 'running')
+                """,
+                (now, error_message, command_id),
+            )
+        return cur.rowcount > 0
+
     @staticmethod
     def _order_row(row: sqlite3.Row) -> dict[str, Any]:
         d = dict(row)

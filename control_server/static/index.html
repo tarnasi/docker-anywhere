@@ -109,6 +109,13 @@
           </article>
         </div>
 
+        <article id="dashboard-job-card" class="card hidden">
+          <h2>Live job</h2>
+          <p id="dashboard-job-text" class="text-[#A3A3A3] text-sm" style="margin-bottom: 0.5rem;"></p>
+          <pre id="dashboard-job-progress" class="mono text-xs" style="max-height: 14rem; overflow: auto; white-space: pre-wrap; background: #111; border: 1px solid #252525; border-radius: 8px; padding: 0.75rem; margin: 0 0 0.75rem;"></pre>
+          <button type="button" class="btn btn-danger btn-sm" id="dashboard-cancel-order-btn">Cancel / clear stuck order</button>
+        </article>
+
         <!-- Server Status -->
         <article class="card">
           <h2>Server Status</h2>
@@ -335,6 +342,8 @@
         <article id="active-order-card" class="card hidden">
           <h2>Active Order</h2>
           <p id="active-order-text" class="text-[#A3A3A3] text-sm"></p>
+          <pre id="active-order-progress" class="mono text-xs" style="max-height: 16rem; overflow: auto; white-space: pre-wrap; background: #111; border: 1px solid #252525; border-radius: 8px; padding: 0.75rem; margin: 0.75rem 0;"></pre>
+          <button type="button" class="btn btn-danger btn-sm" id="cancel-active-order-btn">Cancel / clear stuck order</button>
         </article>
         <div class="table-wrap">
           <table>
@@ -402,7 +411,7 @@
     </nav>
   </div>
 
-  <script src="/static/app.js?v=13"></script>
+  <script src="/static/app.js?v=14"></script>
   <script src="/static/containers.js?v=5"></script>
 </body>
 </html>

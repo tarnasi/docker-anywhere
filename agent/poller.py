@@ -10,8 +10,11 @@ from __future__ import annotations
 import asyncio
 import logging
 from datetime import UTC, datetime
+from typing import Any
+from uuid import UUID
 
 import httpx
+from pydantic import ValidationError
 
 from agent.config import settings
 from agent.executor import execute_command
@@ -115,7 +118,15 @@ class AgentPoller:
         response.raise_for_status()
 
         self.last_successful_poll_at = datetime.now(UTC)
-        poll_data = PollResponse.model_validate(response.json())
+        raw: dict[str, Any] = response.json()
+
+        try:
+            poll_data = PollResponse.model_validate(raw)
+        except ValidationError as exc:
+            # Unknown/newer action on an older agent — clear the stuck order.
+            await self._fail_unparseable_command(raw, str(exc))
+            await self._sync_inventory()
+            return
 
         if poll_data.command is None:
             logger.debug("no pending commands")
@@ -129,7 +140,10 @@ class AgentPoller:
             action=command.action.value,
         )
 
-        result = await execute_command(command)
+        async def on_progress(message: str) -> None:
+            await self._post_progress(command.command_id, message)
+
+        result = await execute_command(command, on_progress=on_progress)
         self.commands_executed += 1
 
         if command.action == ActionType.INVENTORY_SYNC:
@@ -137,6 +151,21 @@ class AgentPoller:
 
         await self._post_result(result)
         await self._sync_inventory()
+
+    async def _fail_unparseable_command(self, raw: dict[str, Any], reason: str) -> None:
+        command = raw.get("command") if isinstance(raw, dict) else None
+        if not isinstance(command, dict):
+            logger.error("poll validation failed with no command object: %s", reason)
+            return
+        command_id = command.get("command_id")
+        if not command_id:
+            logger.error("poll validation failed with no command_id: %s", reason)
+            return
+
+        msg = f"agent cannot execute order (update agent): {reason[:500]}"
+        logger.error("failing unparseable order %s: %s", command_id, msg)
+        await self._post_fail(str(command_id), msg)
+        audit_event("command_unparseable", command_id=str(command_id), reason=msg)
 
     async def _sync_inventory(self) -> None:
         assert self._client is not None
@@ -179,6 +208,37 @@ class AgentPoller:
             command_id=str(body.get("command_id")),
             status=body.get("status"),
         )
+
+    async def _post_progress(self, command_id: UUID, message: str) -> None:
+        assert self._client is not None
+        try:
+            response = await signed_request(
+                self._client,
+                "POST",
+                "/api/v1/progress",
+                json_body={
+                    "command_id": str(command_id),
+                    "agent_id": settings.agent_id,
+                    "message": message,
+                },
+            )
+            response.raise_for_status()
+        except Exception:
+            logger.exception("failed to post progress")
+
+    async def _post_fail(self, command_id: str, error_message: str) -> None:
+        assert self._client is not None
+        response = await signed_request(
+            self._client,
+            "POST",
+            "/api/v1/orders/fail",
+            json_body={
+                "command_id": command_id,
+                "agent_id": settings.agent_id,
+                "error_message": error_message,
+            },
+        )
+        response.raise_for_status()
 
 
 poller = AgentPoller()

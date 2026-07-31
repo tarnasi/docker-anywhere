@@ -108,3 +108,15 @@ class CreateOrderRequest(BaseModel):
     action: ActionType | None = None
     service: str | None = None
     params: dict[str, Any] = Field(default_factory=dict)
+
+
+class OrderProgressRequest(BaseModel):
+    command_id: UUID | str
+    agent_id: str
+    message: str = Field(..., min_length=1, max_length=4000)
+
+
+class FailOrderRequest(BaseModel):
+    command_id: UUID | str
+    agent_id: str
+    error_message: str = Field(..., min_length=1, max_length=2000)
