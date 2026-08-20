@@ -425,3 +425,118 @@ uv run python -m control_server.cli push \
 - All API calls signed with HMAC-SHA256
 - Commands mapped to fixed argv — no shell injection
 - Use HTTPS in production (required)
+
+Two machines: **control** (public UI/API) and **agent** (private server). Same repo on both.
+
+---
+
+- [https://nodejs.org/en/download](Nodejs)
+- [https://docs.astral.sh/uv/getting-started/installation/#standalone-installer](UV astral python package manager)
+
+## 0. Once on both servers
+
+```bash
+# Node (for PM2) + uv (for Python)
+npm install -g pm2
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+
+Generate secrets (run once, reuse matching values):
+
+```bash
+openssl rand -hex 32   # AGENT_API_KEY / AGENT_HMAC_SECRET / OPERATOR_*
+openssl rand -hex 24   # UI_SECRET
+```
+
+---
+
+## 1. Control server (production UI)
+
+```bash
+cd /path/to/docker-anywhere          # e.g. /home/projects/domain/docker-anywhere
+git pull
+uv sync
+mkdir -p logs
+
+cp control_server/.env.example control_server/.env
+nano control_server/.env
+```
+
+Set at least:
+
+- `AGENT_API_KEY` / `AGENT_HMAC_SECRET` (shared with agents)
+- `OPERATOR_API_KEY` / `OPERATOR_HMAC_SECRET`
+- `UI_SECRET` (browser login)
+
+```bash
+chmod +x scripts/pm2-start-control.sh
+pm2 start deploy/control-server/pm2.ecosystem.config.cjs
+pm2 save
+pm2 startup    # run the sudo command it prints
+
+curl http://127.0.0.1:8000/health
+```
+
+Put **nginx/Caddy** in front with HTTPS → `127.0.0.1:8000` (e.g. `https://docker.devdiaries.work`).
+
+---
+
+## 2. Agent server (each private host)
+
+```bash
+cd /home/app/.docker/anywhere        # or your agent path
+git pull
+uv sync
+mkdir -p logs
+
+cp agent/.env.example agent/.env
+nano agent/.env
+```
+
+Set:
+
+```env
+AGENT_ID=devremote                   # unique per server
+API_KEY=<same as control AGENT_API_KEY>
+HMAC_SECRET=<same as control AGENT_HMAC_SECRET>
+CONTROL_SERVER_URL=https://docker.devdiaries.work
+REBOOT_CONFIRMATION_TOKEN=<random>
+```
+
+```bash
+pm2 start agent/ecosystem.config.cjs
+pm2 save
+pm2 startup    # run the sudo command it prints
+
+curl http://127.0.0.1:9080/health
+pm2 logs docker-anywhere-agent --lines 20
+```
+
+You should see poll + inventory sync. UI should show the agent online.
+
+---
+
+## 3. Day-2 update (both sides)
+
+```bash
+cd /path/to/docker-anywhere
+git pull
+uv sync
+pm2 restart docker-anywhere-control   # on control
+# or
+pm2 restart docker-anywhere-agent     # on agent
+```
+
+---
+
+## Useful PM2
+
+```bash
+pm2 list
+pm2 logs docker-anywhere-control --lines 50
+pm2 logs docker-anywhere-agent --lines 50
+pm2 restart <name>
+pm2 save
+```
+
+**Order:** deploy/restart **control first**, then **agents**, so new actions exist before agents poll them.
