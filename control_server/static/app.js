@@ -38,7 +38,12 @@ function agentQuery() {
 
 function isAgentOnline(agent) {
   if (!agent?.last_seen_at) return false;
-  return Date.now() - new Date(agent.last_seen_at).getTime() < 60000;
+  // Online window = 2.5 × agent poll interval (fallback 15s), min 90s buffer.
+  const pollSec = Number(agent.poll_interval_seconds) > 0
+    ? Number(agent.poll_interval_seconds)
+    : 15;
+  const thresholdMs = Math.max(pollSec * 2.5, 90) * 1000;
+  return Date.now() - new Date(agent.last_seen_at).getTime() < thresholdMs;
 }
 
 function agentOptionLabel(agent) {

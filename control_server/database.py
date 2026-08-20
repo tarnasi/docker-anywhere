@@ -48,7 +48,8 @@ class Database:
                     agent_id TEXT PRIMARY KEY,
                     last_seen_at TEXT NOT NULL,
                     last_inventory_at TEXT,
-                    status TEXT NOT NULL DEFAULT 'unknown'
+                    status TEXT NOT NULL DEFAULT 'unknown',
+                    poll_interval_seconds INTEGER NOT NULL DEFAULT 15
                 );
 
                 CREATE TABLE IF NOT EXISTS command_templates (
@@ -132,7 +133,19 @@ class Database:
                 """
             )
             self._migrate_images_unique(conn)
+            self._migrate_agent_poll_interval(conn)
             self._seed_templates(conn)
+
+    def _migrate_agent_poll_interval(self, conn: sqlite3.Connection) -> None:
+        cols = {
+            row[1]
+            for row in conn.execute("PRAGMA table_info(agent_heartbeat)").fetchall()
+        }
+        if "poll_interval_seconds" not in cols:
+            conn.execute(
+                "ALTER TABLE agent_heartbeat "
+                "ADD COLUMN poll_interval_seconds INTEGER NOT NULL DEFAULT 15"
+            )
 
     def _migrate_images_unique(self, conn: sqlite3.Connection) -> None:
         """Docker lists one row per repo:tag; the same image_id can repeat."""
@@ -212,19 +225,40 @@ class Database:
 
     # ── Heartbeat ─────────────────────────────────────────────────────────────
 
-    def touch_agent_poll(self, agent_id: str) -> None:
+    def touch_agent_poll(
+        self,
+        agent_id: str,
+        poll_interval_seconds: int | None = None,
+    ) -> None:
         now = _iso()
+        interval = None
+        if poll_interval_seconds is not None:
+            interval = max(5, min(int(poll_interval_seconds), 3600))
         with self._lock, self._conn() as conn:
-            conn.execute(
-                """
-                INSERT INTO agent_heartbeat (agent_id, last_seen_at, status)
-                VALUES (?, ?, 'online')
-                ON CONFLICT(agent_id) DO UPDATE SET
-                    last_seen_at = excluded.last_seen_at,
-                    status = 'online'
-                """,
-                (agent_id, now),
-            )
+            if interval is not None:
+                conn.execute(
+                    """
+                    INSERT INTO agent_heartbeat
+                        (agent_id, last_seen_at, status, poll_interval_seconds)
+                    VALUES (?, ?, 'online', ?)
+                    ON CONFLICT(agent_id) DO UPDATE SET
+                        last_seen_at = excluded.last_seen_at,
+                        status = 'online',
+                        poll_interval_seconds = excluded.poll_interval_seconds
+                    """,
+                    (agent_id, now, interval),
+                )
+            else:
+                conn.execute(
+                    """
+                    INSERT INTO agent_heartbeat (agent_id, last_seen_at, status)
+                    VALUES (?, ?, 'online')
+                    ON CONFLICT(agent_id) DO UPDATE SET
+                        last_seen_at = excluded.last_seen_at,
+                        status = 'online'
+                    """,
+                    (agent_id, now),
+                )
             conn.execute(
                 "UPDATE api_call_log SET last_agent_poll_at = ? WHERE id = 1",
                 (now,),

@@ -430,8 +430,8 @@ Two machines: **control** (public UI/API) and **agent** (private server). Same r
 
 ---
 
-- [https://nodejs.org/en/download](Nodejs)
-- [https://docs.astral.sh/uv/getting-started/installation/#standalone-installer](UV astral python package manager)
+- [Nodejs](https://nodejs.org/en/download)
+- [UV astral python package manager](https://docs.astral.sh/uv/getting-started/installation/#standalone-installer)
 
 ## 0. Once on both servers
 

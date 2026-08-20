@@ -112,7 +112,10 @@ class AgentPoller:
         assert self._client is not None
 
         self.last_poll_at = datetime.now(UTC)
-        poll_url = f"/api/v1/poll?agent_id={settings.agent_id}"
+        poll_url = (
+            f"/api/v1/poll?agent_id={settings.agent_id}"
+            f"&poll_interval_seconds={settings.poll_interval_seconds}"
+        )
 
         response = await signed_request(self._client, "GET", poll_url)
         response.raise_for_status()

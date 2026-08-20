@@ -105,9 +105,10 @@ async def health() -> dict[str, str]:
 @app.get("/api/v1/poll", response_model=PollResponse, tags=["agent"])
 async def poll_commands(
     agent_id: str,
+    poll_interval_seconds: int | None = None,
     _raw: bytes = Depends(verify_agent_request),
 ) -> PollResponse:
-    db.touch_agent_poll(agent_id)
+    db.touch_agent_poll(agent_id, poll_interval_seconds=poll_interval_seconds)
     order = db.poll_next_order(agent_id)
     if not order:
         return PollResponse(command=None)
